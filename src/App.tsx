@@ -23,6 +23,30 @@ function getImageUrl(card: SwuCard): string | null {
     )
 }
 
+function getDeduplicationKey(card: SwuCard): string {
+    const title = (card.attributes.title || '').trim().toLowerCase()
+    const subtitle = (card.attributes.subtitle || '').trim().toLowerCase()
+    return `${title}|||${subtitle}`
+}
+
+function compareCardsForDisplay(a: SwuCard, b: SwuCard): number {
+    const keyA = getDeduplicationKey(a)
+    const keyB = getDeduplicationKey(b)
+
+    if (keyA !== keyB) {
+        return keyA.localeCompare(keyB)
+    }
+
+    const expansionA = getExpansion(a)
+    const expansionB = getExpansion(b)
+
+    if (expansionA !== expansionB) {
+        return expansionA.localeCompare(expansionB)
+    }
+
+    return a.id - b.id
+}
+
 function getType(card: SwuCard): string {
     return card.attributes.type?.data?.attributes?.name || '—'
 }
@@ -79,12 +103,6 @@ function matchesFilter(value: string, mode: FilterMode, selected: Set<string>): 
     return !selected.has(value)
 }
 
-function getDeduplicationKey(card: SwuCard): string {
-    const title = (card.attributes.title || '').trim().toLowerCase()
-    const subtitle = (card.attributes.subtitle || '').trim().toLowerCase()
-    return `${title}|||${subtitle}`
-}
-
 export default function App() {
     const [cards, setCards] = useState<SwuCard[]>([])
     const [index, setIndex] = useState(0)
@@ -97,6 +115,8 @@ export default function App() {
 
     const [expansionFilterMode, setExpansionFilterMode] = useState<FilterMode>('include')
     const [selectedExpansions, setSelectedExpansions] = useState<string[]>([])
+
+    const [showDuplicates, setShowDuplicates] = useState(false)
 
     useEffect(() => {
         let cancelled = false
@@ -134,10 +154,14 @@ export default function App() {
         }
     }, [])
 
+    const sortedCards = useMemo(() => {
+        return [...cards].sort(compareCardsForDisplay)
+    }, [cards])
+
     const deduplicatedCards = useMemo(() => {
         const seen = new Set<string>()
 
-        return cards.filter((card) => {
+        return sortedCards.filter((card) => {
             const key = getDeduplicationKey(card)
 
             if (seen.has(key)) {
@@ -147,15 +171,17 @@ export default function App() {
             seen.add(key)
             return true
         })
-    }, [cards])
+    }, [sortedCards])
+
+    const baseCards = showDuplicates ? sortedCards : deduplicatedCards
 
     const availableTypes = useMemo(() => {
-        return [...new Set(deduplicatedCards.map(getType).filter((value) => value && value !== '—'))].sort()
-    }, [deduplicatedCards])
+        return [...new Set(baseCards.map(getType).filter((value) => value && value !== '—'))].sort()
+    }, [baseCards])
 
     const availableExpansions = useMemo(() => {
-        return [...new Set(deduplicatedCards.map(getExpansion).filter((value) => value && value !== '—'))].sort()
-    }, [deduplicatedCards])
+        return [...new Set(baseCards.map(getExpansion).filter((value) => value && value !== '—'))].sort()
+    }, [baseCards])
 
     useEffect(() => {
         if (availableTypes.length === 0) return
@@ -176,12 +202,12 @@ export default function App() {
     }, [availableExpansions])
 
     const filteredCards = useMemo(() => {
-        if (deduplicatedCards.length === 0) return []
+        if (baseCards.length === 0) return []
 
         const selectedTypeSet = new Set(selectedTypes)
         const selectedExpansionSet = new Set(selectedExpansions)
 
-        return deduplicatedCards.filter((card) => {
+        return baseCards.filter((card) => {
             const type = getType(card)
             const expansion = getExpansion(card)
 
@@ -190,11 +216,11 @@ export default function App() {
                 matchesFilter(expansion, expansionFilterMode, selectedExpansionSet)
             )
         })
-    }, [deduplicatedCards, selectedTypes, typeFilterMode, selectedExpansions, expansionFilterMode])
+    }, [baseCards, selectedTypes, typeFilterMode, selectedExpansions, expansionFilterMode])
 
     useEffect(() => {
         setIndex(0)
-    }, [selectedTypes, typeFilterMode, selectedExpansions, expansionFilterMode])
+    }, [showDuplicates, selectedTypes, typeFilterMode, selectedExpansions, expansionFilterMode])
 
     useEffect(() => {
         if (index >= filteredCards.length) {
@@ -324,6 +350,8 @@ export default function App() {
 
             {filtersOpen ? (
                 <FilterPanel
+                    showDuplicates={showDuplicates}
+                    onShowDuplicatesChange={setShowDuplicates}
                     types={availableTypes}
                     typeMode={typeFilterMode}
                     selectedTypes={selectedTypes}

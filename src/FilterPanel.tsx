@@ -13,6 +13,9 @@ type FilterGroupProps = {
 }
 
 type FilterPanelProps = {
+    showDuplicates: boolean
+    onShowDuplicatesChange: (value: boolean) => void
+
     types: string[]
     typeMode: FilterMode
     selectedTypes: string[]
@@ -96,6 +99,18 @@ function FilterGroup({
 function FilterPanelComponent(props: FilterPanelProps) {
     return (
         <section className="filter-panel">
+            <div className="filter-section">
+                <h3>Duplicity</h3>
+                <label className="checkbox-option">
+                    <input
+                        type="checkbox"
+                        checked={props.showDuplicates}
+                        onChange={(e) => props.onShowDuplicatesChange(e.target.checked)}
+                    />
+                    <span>Zobrazit duplicitní karty</span>
+                </label>
+            </div>
+
             <div className="filter-groups">
                 <FilterGroup
                     title="Typ"
@@ -123,5 +138,4 @@ function FilterPanelComponent(props: FilterPanelProps) {
     )
 }
 
-const FilterPanel = memo(FilterPanelComponent)
-export default FilterPanel
+export default memo(FilterPanelComponent)
