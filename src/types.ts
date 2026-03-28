@@ -71,3 +71,10 @@ export type SwuCard = {
     id: number
     attributes: SwuCardAttributes
 }
+
+export type FilterMode = 'include' | 'exclude'
+
+export type TypeFilterState = {
+    mode: FilterMode
+    selectedTypes: string[]
+}

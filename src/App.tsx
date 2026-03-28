@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { SwuCard } from './types'
+import FilterPanel from './FilterPanel'
+import type { FilterMode, SwuCard } from './types'
 
 const DATA_URL = import.meta.env.VITE_CARDS_URL || '/cards.json'
 
@@ -70,12 +71,32 @@ function getRulesText(card: SwuCard): string | null {
     )
 }
 
+function matchesFilter(value: string, mode: FilterMode, selected: Set<string>): boolean {
+    if (mode === 'include') {
+        return selected.has(value)
+    }
+
+    return !selected.has(value)
+}
+
+function getDeduplicationKey(card: SwuCard): string {
+    const title = (card.attributes.title || '').trim().toLowerCase()
+    const subtitle = (card.attributes.subtitle || '').trim().toLowerCase()
+    return `${title}|||${subtitle}`
+}
+
 export default function App() {
     const [cards, setCards] = useState<SwuCard[]>([])
     const [index, setIndex] = useState(0)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [filtersOpen, setFiltersOpen] = useState(false)
+
+    const [typeFilterMode, setTypeFilterMode] = useState<FilterMode>('include')
+    const [selectedTypes, setSelectedTypes] = useState<string[]>([])
+
+    const [expansionFilterMode, setExpansionFilterMode] = useState<FilterMode>('include')
+    const [selectedExpansions, setSelectedExpansions] = useState<string[]>([])
 
     useEffect(() => {
         let cancelled = false
@@ -113,13 +134,80 @@ export default function App() {
         }
     }, [])
 
-    const current = cards[index]
+    const deduplicatedCards = useMemo(() => {
+        const seen = new Set<string>()
+
+        return cards.filter((card) => {
+            const key = getDeduplicationKey(card)
+
+            if (seen.has(key)) {
+                return false
+            }
+
+            seen.add(key)
+            return true
+        })
+    }, [cards])
+
+    const availableTypes = useMemo(() => {
+        return [...new Set(deduplicatedCards.map(getType).filter((value) => value && value !== '—'))].sort()
+    }, [deduplicatedCards])
+
+    const availableExpansions = useMemo(() => {
+        return [...new Set(deduplicatedCards.map(getExpansion).filter((value) => value && value !== '—'))].sort()
+    }, [deduplicatedCards])
+
+    useEffect(() => {
+        if (availableTypes.length === 0) return
+
+        setSelectedTypes((prev) => {
+            if (prev.length > 0) return prev
+            return availableTypes
+        })
+    }, [availableTypes])
+
+    useEffect(() => {
+        if (availableExpansions.length === 0) return
+
+        setSelectedExpansions((prev) => {
+            if (prev.length > 0) return prev
+            return availableExpansions
+        })
+    }, [availableExpansions])
+
+    const filteredCards = useMemo(() => {
+        if (deduplicatedCards.length === 0) return []
+
+        const selectedTypeSet = new Set(selectedTypes)
+        const selectedExpansionSet = new Set(selectedExpansions)
+
+        return deduplicatedCards.filter((card) => {
+            const type = getType(card)
+            const expansion = getExpansion(card)
+
+            return (
+                matchesFilter(type, typeFilterMode, selectedTypeSet) &&
+                matchesFilter(expansion, expansionFilterMode, selectedExpansionSet)
+            )
+        })
+    }, [deduplicatedCards, selectedTypes, typeFilterMode, selectedExpansions, expansionFilterMode])
+
+    useEffect(() => {
+        setIndex(0)
+    }, [selectedTypes, typeFilterMode, selectedExpansions, expansionFilterMode])
+
+    useEffect(() => {
+        if (index >= filteredCards.length) {
+            setIndex(0)
+        }
+    }, [index, filteredCards.length])
+
+    const current = filteredCards[index]
 
     const infoRows = useMemo(() => {
         if (!current) return []
 
         return [
-            ['Název', getCardName(current)],
             ['Typ', getType(current)],
             ['Edice', getExpansion(current)],
             ['Rarita', getRarity(current)],
@@ -137,11 +225,43 @@ export default function App() {
     }
 
     function nextCard() {
-        setIndex((prev) => Math.min(prev + 1, cards.length - 1))
+        setIndex((prev) => Math.min(prev + 1, filteredCards.length - 1))
     }
 
     function onSliderChange(value: string) {
         setIndex(Number(value))
+    }
+
+    function toggleType(type: string) {
+        setSelectedTypes((prev) =>
+            prev.includes(type)
+                ? prev.filter((item) => item !== type)
+                : [...prev, type],
+        )
+    }
+
+    function toggleExpansion(expansion: string) {
+        setSelectedExpansions((prev) =>
+            prev.includes(expansion)
+                ? prev.filter((item) => item !== expansion)
+                : [...prev, expansion],
+        )
+    }
+
+    function selectAllTypes() {
+        setSelectedTypes(availableTypes)
+    }
+
+    function clearAllTypes() {
+        setSelectedTypes([])
+    }
+
+    function selectAllExpansions() {
+        setSelectedExpansions(availableExpansions)
+    }
+
+    function clearAllExpansions() {
+        setSelectedExpansions([])
     }
 
     if (loading) {
@@ -160,29 +280,35 @@ export default function App() {
         )
     }
 
-    if (!current) {
-        return (
-            <div className="page">
-                <div className="status">Žádná data.</div>
-            </div>
-        )
-    }
-
     return (
         <div className="page">
             <section className="toolbar-panel">
                 <div className="toolbar-left">
-                    <button onClick={previousCard} disabled={index === 0}>
+                    <button onClick={previousCard} disabled={index === 0 || filteredCards.length === 0}>
                         Předchozí
                     </button>
 
                     <div className="counter">
-                        {index + 1} / {cards.length}
+                        {filteredCards.length === 0 ? '0 / 0' : `${index + 1} / ${filteredCards.length}`}
                     </div>
 
-                    <button onClick={nextCard} disabled={index === cards.length - 1}>
+                    <button
+                        onClick={nextCard}
+                        disabled={filteredCards.length === 0 || index === filteredCards.length - 1}
+                    >
                         Další
                     </button>
+                </div>
+
+                <div className="toolbar-center">
+                    <input
+                        className="slider toolbar-slider"
+                        type="range"
+                        min={0}
+                        max={Math.max(filteredCards.length - 1, 0)}
+                        value={Math.min(index, Math.max(filteredCards.length - 1, 0))}
+                        onChange={(e) => onSliderChange(e.target.value)}
+                    />
                 </div>
 
                 <div className="toolbar-right">
@@ -197,61 +323,67 @@ export default function App() {
             </section>
 
             {filtersOpen ? (
-                <section className="filter-panel">
-                    <div className="filter-placeholder">
-                        Sem později doplníme filtraci.
-                    </div>
-                </section>
+                <FilterPanel
+                    types={availableTypes}
+                    typeMode={typeFilterMode}
+                    selectedTypes={selectedTypes}
+                    onTypeModeChange={setTypeFilterMode}
+                    onToggleType={toggleType}
+                    onSelectAllTypes={selectAllTypes}
+                    onClearAllTypes={clearAllTypes}
+                    expansions={availableExpansions}
+                    expansionMode={expansionFilterMode}
+                    selectedExpansions={selectedExpansions}
+                    onExpansionModeChange={setExpansionFilterMode}
+                    onToggleExpansion={toggleExpansion}
+                    onSelectAllExpansions={selectAllExpansions}
+                    onClearAllExpansions={clearAllExpansions}
+                />
             ) : null}
 
-            <main className="layout">
-                <section className="card-panel">
-                    <div className="card-image-wrap">
-                        {getImageUrl(current) ? (
-                            <img
-                                className="card-image"
-                                src={getImageUrl(current)!}
-                                alt={getCardName(current)}
-                            />
-                        ) : (
-                            <div className="image-placeholder">Bez obrázku</div>
-                        )}
-                    </div>
-                </section>
-
-                <section className="details-panel">
-                    <input
-                        className="slider"
-                        type="range"
-                        min={0}
-                        max={Math.max(cards.length - 1, 0)}
-                        value={index}
-                        onChange={(e) => onSliderChange(e.target.value)}
-                    />
-
-                    <h2>{getCardName(current)}</h2>
-
-                    {getSubtitle(current) ? (
-                        <p className="subtitle">{getSubtitle(current)}</p>
-                    ) : null}
-
-                    <div className="info-table">
-                        {infoRows.map(([label, value]) => (
-                            <div className="info-row" key={label}>
-                                <div className="info-label">{label}</div>
-                                <div className="info-value">{String(value)}</div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {getRulesText(current) ? (
-                        <div className="rules-box">
-                            <h3>Text karty</h3>
-                            <p style={{ whiteSpace: 'pre-line' }}>{getRulesText(current)}</p>
+            {!current ? (
+                <div className="status">Po aplikaci filtrů nezůstala žádná karta.</div>
+            ) : (
+                <main className="layout">
+                    <section className="card-panel">
+                        <div className="card-image-wrap">
+                            {getImageUrl(current) ? (
+                                <img
+                                    className="card-image"
+                                    src={getImageUrl(current)!}
+                                    alt={getCardName(current)}
+                                />
+                            ) : (
+                                <div className="image-placeholder">Bez obrázku</div>
+                            )}
                         </div>
-                    ) : null}
-                </section>
-            </main>
+                    </section>
+
+                    <section className="details-panel">
+                        <h2>{getCardName(current)}</h2>
+
+                        {getSubtitle(current) ? (
+                            <p className="subtitle">{getSubtitle(current)}</p>
+                        ) : null}
+
+                        <div className="info-table">
+                            {infoRows.map(([label, value]) => (
+                                <div className="info-row" key={label}>
+                                    <div className="info-label">{label}</div>
+                                    <div className="info-value">{String(value)}</div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {getRulesText(current) ? (
+                            <div className="rules-box">
+                                <h3>Text karty</h3>
+                                <p style={{ whiteSpace: 'pre-line' }}>{getRulesText(current)}</p>
+                            </div>
+                        ) : null}
+                    </section>
+                </main>
+            )}
         </div>
     )
 }
