@@ -1,29 +1,73 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { SwuCard } from './types'
 
-const DATA_URL =
-    import.meta.env.VITE_CARDS_URL || '/cards.json'
+const DATA_URL = import.meta.env.VITE_CARDS_URL || '/cards.json'
 
 function getCardName(card: SwuCard): string {
-    return card.title || card.name || 'Unknown card'
+    return card.attributes.title || 'Unknown card'
 }
 
-function getCardImage(card: SwuCard): string | null {
-    return card.frontArt?.url || card.image || null
+function getSubtitle(card: SwuCard): string | null {
+    return card.attributes.subtitle || null
+}
+
+function getImageUrl(card: SwuCard): string | null {
+    const media = card.attributes.artFront?.data?.attributes
+    return (
+        media?.formats?.card?.url ||
+        media?.formats?.medium?.url ||
+        media?.formats?.small?.url ||
+        media?.url ||
+        null
+    )
 }
 
 function getType(card: SwuCard): string {
-    return card.type?.name || 'Unknown'
+    return card.attributes.type?.data?.attributes?.name || '—'
+}
+
+function getExpansion(card: SwuCard): string {
+    return card.attributes.expansion?.data?.attributes?.name || '—'
+}
+
+function getRarity(card: SwuCard): string {
+    return card.attributes.rarity?.data?.attributes?.name || '—'
 }
 
 function getTraits(card: SwuCard): string {
-    if (!card.traits?.length) return '—'
-    return card.traits.map((t) => t.name).filter(Boolean).join(', ')
+    const items = card.attributes.traits?.data || []
+    if (!items.length) return '—'
+    return items
+        .map((item) => item.attributes?.name || item.attributes?.title)
+        .filter(Boolean)
+        .join(', ')
 }
 
 function getAspects(card: SwuCard): string {
-    if (!card.aspect?.length) return '—'
-    return card.aspect.map((a) => a.name).filter(Boolean).join(', ')
+    const items = card.attributes.aspects?.data || []
+    if (!items.length) return '—'
+    return items
+        .map((item) => item.attributes?.name || item.attributes?.title)
+        .filter(Boolean)
+        .join(', ')
+}
+
+function getArenas(card: SwuCard): string {
+    const items = card.attributes.arenas?.data || []
+    if (!items.length) return '—'
+    return items
+        .map((item) => item.attributes?.name || item.attributes?.title)
+        .filter(Boolean)
+        .join(', ')
+}
+
+function getRulesText(card: SwuCard): string | null {
+    return (
+        card.attributes.text ||
+        card.attributes.deployBox ||
+        card.attributes.epicAction ||
+        null
+    )
 }
 
 export default function App() {
@@ -46,6 +90,7 @@ export default function App() {
                 }
 
                 const data = (await response.json()) as SwuCard[]
+
                 if (!cancelled) {
                     setCards(data)
                     setIndex(0)
@@ -62,6 +107,7 @@ export default function App() {
         }
 
         loadCards()
+
         return () => {
             cancelled = true
         }
@@ -74,17 +120,22 @@ export default function App() {
 
         return [
             ['Název', getCardName(current)],
-            ['Číslo', current.cardNumber ?? '—'],
+            ['Podtitul', getSubtitle(current) ?? '—'],
+            ['Číslo', current.attributes.cardNumber ?? '—'],
             ['Typ', getType(current)],
-            ['Edice', current.expansion?.name ?? '—'],
-            ['Rarita', current.rarity ?? '—'],
+            ['Edice', getExpansion(current)],
+            ['Rarita', getRarity(current)],
             ['Aspekty', getAspects(current)],
             ['Traits', getTraits(current)],
-            ['Arena', current.arena?.name ?? '—'],
-            ['Cost', current.cost ?? '—'],
-            ['Power', current.power ?? '—'],
-            ['HP', current.hp ?? '—'],
-            ['Artist', current.artist ?? '—'],
+            ['Arena', getArenas(current)],
+            ['Cost', current.attributes.cost ?? '—'],
+            ['Power', current.attributes.power ?? '—'],
+            ['HP', current.attributes.hp ?? '—'],
+            ['Artist', current.attributes.artist ?? '—'],
+            ['Serial', current.attributes.serialCode ?? '—'],
+            ['Unique', current.attributes.unique ? 'Ano' : 'Ne'],
+            ['Hyperspace', current.attributes.hyperspace ? 'Ano' : 'Ne'],
+            ['Showcase', current.attributes.showcase ? 'Ano' : 'Ne'],
         ]
     }, [current])
 
@@ -94,10 +145,6 @@ export default function App() {
 
     function nextCard() {
         setIndex((prev) => Math.min(prev + 1, cards.length - 1))
-    }
-
-    function onSliderChange(value: string) {
-        setIndex(Number(value))
     }
 
     if (loading) {
@@ -124,10 +171,10 @@ export default function App() {
             <main className="layout">
                 <section className="card-panel">
                     <div className="card-image-wrap">
-                        {getCardImage(current) ? (
+                        {getImageUrl(current) ? (
                             <img
                                 className="card-image"
-                                src={getCardImage(current)!}
+                                src={getImageUrl(current)!}
                                 alt={getCardName(current)}
                             />
                         ) : (
@@ -155,11 +202,11 @@ export default function App() {
                         min={0}
                         max={Math.max(cards.length - 1, 0)}
                         value={index}
-                        onChange={(e) => onSliderChange(e.target.value)}
+                        onChange={(e) => setIndex(Number(e.target.value))}
                     />
 
                     <h2>{getCardName(current)}</h2>
-                    {current.subtitle ? <p className="subtitle">{current.subtitle}</p> : null}
+                    {getSubtitle(current) ? <p className="subtitle">{getSubtitle(current)}</p> : null}
 
                     <div className="info-table">
                         {infoRows.map(([label, value]) => (
@@ -170,10 +217,10 @@ export default function App() {
                         ))}
                     </div>
 
-                    {current.text ? (
+                    {getRulesText(current) ? (
                         <div className="rules-box">
                             <h3>Text karty</h3>
-                            <p>{current.text}</p>
+                            <p style={{ whiteSpace: 'pre-line' }}>{getRulesText(current)}</p>
                         </div>
                     ) : null}
                 </section>
