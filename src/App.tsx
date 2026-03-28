@@ -75,6 +75,7 @@ export default function App() {
     const [index, setIndex] = useState(0)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [filtersOpen, setFiltersOpen] = useState(false)
 
     useEffect(() => {
         let cancelled = false
@@ -107,7 +108,6 @@ export default function App() {
         }
 
         loadCards()
-
         return () => {
             cancelled = true
         }
@@ -120,8 +120,6 @@ export default function App() {
 
         return [
             ['Název', getCardName(current)],
-            ['Podtitul', getSubtitle(current) ?? '—'],
-            ['Číslo', current.attributes.cardNumber ?? '—'],
             ['Typ', getType(current)],
             ['Edice', getExpansion(current)],
             ['Rarita', getRarity(current)],
@@ -131,11 +129,6 @@ export default function App() {
             ['Cost', current.attributes.cost ?? '—'],
             ['Power', current.attributes.power ?? '—'],
             ['HP', current.attributes.hp ?? '—'],
-            ['Artist', current.attributes.artist ?? '—'],
-            ['Serial', current.attributes.serialCode ?? '—'],
-            ['Unique', current.attributes.unique ? 'Ano' : 'Ne'],
-            ['Hyperspace', current.attributes.hyperspace ? 'Ano' : 'Ne'],
-            ['Showcase', current.attributes.showcase ? 'Ano' : 'Ne'],
         ]
     }, [current])
 
@@ -148,25 +141,48 @@ export default function App() {
     }
 
     if (loading) {
-        return <div className="page"><div className="status">Načítám karty…</div></div>
+        return (
+            <div className="page">
+                <div className="status">Načítám karty…</div>
+            </div>
+        )
     }
 
     if (error) {
-        return <div className="page"><div className="status error">Chyba: {error}</div></div>
+        return (
+            <div className="page">
+                <div className="status error">Chyba: {error}</div>
+            </div>
+        )
     }
 
     if (!current) {
-        return <div className="page"><div className="status">Žádná data.</div></div>
+        return (
+            <div className="page">
+                <div className="status">Žádná data.</div>
+            </div>
+        )
     }
 
     return (
         <div className="page">
-            <header className="topbar">
-                <div>
-                    <h1>SWU galerie</h1>
-                    <p>{cards.length} karet</p>
-                </div>
+            <header className="topbar topbar-right">
+                <button
+                    className="filter-toggle"
+                    type="button"
+                    onClick={() => setFiltersOpen((prev) => !prev)}
+                >
+                    {filtersOpen ? 'Skrýt filtry' : 'Rozbalit filtry'}
+                </button>
             </header>
+
+            {filtersOpen ? (
+                <section className="filter-panel">
+                    <div className="filter-placeholder">
+                        Sem později doplníme filtraci.
+                    </div>
+                </section>
+            ) : null}
 
             <main className="layout">
                 <section className="card-panel">

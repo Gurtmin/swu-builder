@@ -10,9 +10,6 @@ export type MediaAttributes = {
         card?: ImageFormat
         small?: ImageFormat
         medium?: ImageFormat
-        xsmall?: ImageFormat
-        xxsmall?: ImageFormat
-        xxxsmall?: ImageFormat
         thumbnail?: ImageFormat
     }
 }
@@ -66,14 +63,6 @@ export type SwuCardAttributes = {
     rarity?: RelationOne
 
     artFront?: {
-        data?: MediaData
-    } | null
-
-    artBack?: {
-        data?: MediaData
-    } | null
-
-    artThumbnail?: {
         data?: MediaData
     } | null
 }
