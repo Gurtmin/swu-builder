@@ -103,6 +103,34 @@ function matchesFilter(value: string, mode: FilterMode, selected: Set<string>): 
     return !selected.has(value)
 }
 
+function isNonEmptyString(value: string | undefined | null): value is string {
+    return typeof value === 'string' && value.trim().length > 0
+}
+
+function getRelationNames(
+    items: { attributes?: { name?: string; title?: string } }[] | undefined,
+): string[] {
+    return (items || [])
+        .map((item) => item.attributes?.name || item.attributes?.title)
+        .filter(isNonEmptyString)
+}
+
+function matchesMultiValueFilter(
+    values: string[],
+    mode: FilterMode,
+    selected: Set<string>,
+): boolean {
+    if (selected.size === 0) {
+        return mode === 'include' ? false : true
+    }
+
+    if (mode === 'include') {
+        return values.some((value) => selected.has(value))
+    }
+
+    return values.every((value) => !selected.has(value))
+}
+
 export default function App() {
     const [imageLoading, setImageLoading] = useState(true)
     const [imageError, setImageError] = useState(false)
@@ -118,6 +146,15 @@ export default function App() {
 
     const [expansionFilterMode, setExpansionFilterMode] = useState<FilterMode>('include')
     const [selectedExpansions, setSelectedExpansions] = useState<string[]>([])
+
+    const [rarityFilterMode, setRarityFilterMode] = useState<FilterMode>('include')
+    const [selectedRarities, setSelectedRarities] = useState<string[]>([])
+
+    const [traitFilterMode, setTraitFilterMode] = useState<FilterMode>('include')
+    const [selectedTraits, setSelectedTraits] = useState<string[]>([])
+
+    const [aspectFilterMode, setAspectFilterMode] = useState<FilterMode>('include')
+    const [selectedAspects, setSelectedAspects] = useState<string[]>([])
 
     const [showDuplicates, setShowDuplicates] = useState(false)
 
@@ -204,22 +241,83 @@ export default function App() {
         })
     }, [availableExpansions])
 
+    const availableRarities = useMemo(() => {
+        return [...new Set(baseCards.map(getRarity).filter(v => v && v !== '—'))].sort()
+    }, [baseCards])
+
+    const availableTraits = useMemo(() => {
+        return [...new Set(
+            baseCards.flatMap(card =>
+                (card.attributes.traits?.data || [])
+                    .map(t => t.attributes?.name || t.attributes?.title)
+                    .filter(isNonEmptyString)
+            ).filter(Boolean)
+        )].sort()
+    }, [baseCards])
+
+    const availableAspects = useMemo(() => {
+        return [...new Set(
+            baseCards.flatMap(card =>
+                (card.attributes.aspects?.data || [])
+                    .map(a => a.attributes?.name || a.attributes?.title)
+                    .filter(isNonEmptyString)
+            ).filter(Boolean)
+        )].sort()
+    }, [baseCards])
+
+    useEffect(() => {
+        if (availableRarities.length === 0) return
+        setSelectedRarities(prev => prev.length ? prev : availableRarities)
+    }, [availableRarities])
+
+    useEffect(() => {
+        if (availableTraits.length === 0) return
+        setSelectedTraits(prev => prev.length ? prev : availableTraits)
+    }, [availableTraits])
+
+    useEffect(() => {
+        if (availableAspects.length === 0) return
+        setSelectedAspects(prev => prev.length ? prev : availableAspects)
+    }, [availableAspects])
+
     const filteredCards = useMemo(() => {
         if (baseCards.length === 0) return []
 
         const selectedTypeSet = new Set(selectedTypes)
         const selectedExpansionSet = new Set(selectedExpansions)
+        const selectedRaritySet = new Set(selectedRarities)
+        const selectedTraitSet = new Set(selectedTraits)
+        const selectedAspectSet = new Set(selectedAspects)
 
         return baseCards.filter((card) => {
             const type = getType(card)
             const expansion = getExpansion(card)
+            const rarity = getRarity(card)
+
+            const traits = getRelationNames(card.attributes.traits?.data)
+            const aspects = getRelationNames(card.attributes.aspects?.data)
 
             return (
                 matchesFilter(type, typeFilterMode, selectedTypeSet) &&
-                matchesFilter(expansion, expansionFilterMode, selectedExpansionSet)
+                matchesFilter(expansion, expansionFilterMode, selectedExpansionSet) &&
+                matchesFilter(rarity, rarityFilterMode, selectedRaritySet) &&
+                matchesMultiValueFilter(traits, traitFilterMode, selectedTraitSet) &&
+                matchesMultiValueFilter(aspects, aspectFilterMode, selectedAspectSet)
             )
         })
-    }, [baseCards, selectedTypes, typeFilterMode, selectedExpansions, expansionFilterMode])
+    }, [
+        baseCards,
+        selectedTypes,
+        typeFilterMode,
+        selectedExpansions,
+        expansionFilterMode,
+        selectedRarities,
+        rarityFilterMode,
+        selectedTraits,
+        traitFilterMode,
+        selectedAspects,
+        aspectFilterMode,
+    ])
 
     useEffect(() => {
         setIndex(0)
@@ -283,6 +381,33 @@ export default function App() {
                 : [...prev, expansion],
         )
     }
+
+    function toggleRarity(v: string) {
+        setSelectedRarities(prev =>
+            prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]
+        )
+    }
+
+    function toggleTrait(v: string) {
+        setSelectedTraits(prev =>
+            prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]
+        )
+    }
+
+    function toggleAspect(v: string) {
+        setSelectedAspects(prev =>
+            prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]
+        )
+    }
+
+    const selectAllRarities = () => setSelectedRarities(availableRarities)
+    const clearAllRarities = () => setSelectedRarities([])
+
+    const selectAllTraits = () => setSelectedTraits(availableTraits)
+    const clearAllTraits = () => setSelectedTraits([])
+
+    const selectAllAspects = () => setSelectedAspects(availableAspects)
+    const clearAllAspects = () => setSelectedAspects([])
 
     function selectAllTypes() {
         setSelectedTypes(availableTypes)
@@ -362,6 +487,7 @@ export default function App() {
                 <FilterPanel
                     showDuplicates={showDuplicates}
                     onShowDuplicatesChange={setShowDuplicates}
+
                     types={availableTypes}
                     typeMode={typeFilterMode}
                     selectedTypes={selectedTypes}
@@ -369,6 +495,7 @@ export default function App() {
                     onToggleType={toggleType}
                     onSelectAllTypes={selectAllTypes}
                     onClearAllTypes={clearAllTypes}
+
                     expansions={availableExpansions}
                     expansionMode={expansionFilterMode}
                     selectedExpansions={selectedExpansions}
@@ -376,6 +503,30 @@ export default function App() {
                     onToggleExpansion={toggleExpansion}
                     onSelectAllExpansions={selectAllExpansions}
                     onClearAllExpansions={clearAllExpansions}
+
+                    rarities={availableRarities}
+                    rarityMode={rarityFilterMode}
+                    selectedRarities={selectedRarities}
+                    onRarityModeChange={setRarityFilterMode}
+                    onToggleRarity={toggleRarity}
+                    onSelectAllRarities={selectAllRarities}
+                    onClearAllRarities={clearAllRarities}
+
+                    traits={availableTraits}
+                    traitMode={traitFilterMode}
+                    selectedTraits={selectedTraits}
+                    onTraitModeChange={setTraitFilterMode}
+                    onToggleTrait={toggleTrait}
+                    onSelectAllTraits={selectAllTraits}
+                    onClearAllTraits={clearAllTraits}
+
+                    aspects={availableAspects}
+                    aspectMode={aspectFilterMode}
+                    selectedAspects={selectedAspects}
+                    onAspectModeChange={setAspectFilterMode}
+                    onToggleAspect={toggleAspect}
+                    onSelectAllAspects={selectAllAspects}
+                    onClearAllAspects={clearAllAspects}
                 />
             ) : null}
 

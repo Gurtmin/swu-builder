@@ -24,6 +24,30 @@ type FilterPanelProps = {
     onSelectAllTypes: () => void
     onClearAllTypes: () => void
 
+    rarities: string[]
+    rarityMode: FilterMode
+    selectedRarities: string[]
+    onRarityModeChange: (mode: FilterMode) => void
+    onToggleRarity: (value: string) => void
+    onSelectAllRarities: () => void
+    onClearAllRarities: () => void
+
+    traits: string[]
+    traitMode: FilterMode
+    selectedTraits: string[]
+    onTraitModeChange: (mode: FilterMode) => void
+    onToggleTrait: (value: string) => void
+    onSelectAllTraits: () => void
+    onClearAllTraits: () => void
+
+    aspects: string[]
+    aspectMode: FilterMode
+    selectedAspects: string[]
+    onAspectModeChange: (mode: FilterMode) => void
+    onToggleAspect: (value: string) => void
+    onSelectAllAspects: () => void
+    onClearAllAspects: () => void
+
     expansions: string[]
     expansionMode: FilterMode
     selectedExpansions: string[]
@@ -136,6 +160,39 @@ function FilterPanelComponent(props: FilterPanelProps) {
                     onToggleItem={props.onToggleExpansion}
                     onSelectAll={props.onSelectAllExpansions}
                     onClearAll={props.onClearAllExpansions}
+                />
+
+                <FilterGroup
+                    title="Rarita"
+                    items={props.rarities}
+                    mode={props.rarityMode}
+                    selectedItems={props.selectedRarities}
+                    onModeChange={props.onRarityModeChange}
+                    onToggleItem={props.onToggleRarity}
+                    onSelectAll={props.onSelectAllRarities}
+                    onClearAll={props.onClearAllRarities}
+                />
+
+                <FilterGroup
+                    title="Traits"
+                    items={props.traits}
+                    mode={props.traitMode}
+                    selectedItems={props.selectedTraits}
+                    onModeChange={props.onTraitModeChange}
+                    onToggleItem={props.onToggleTrait}
+                    onSelectAll={props.onSelectAllTraits}
+                    onClearAll={props.onClearAllTraits}
+                />
+
+                <FilterGroup
+                    title="Aspekty"
+                    items={props.aspects}
+                    mode={props.aspectMode}
+                    selectedItems={props.selectedAspects}
+                    onModeChange={props.onAspectModeChange}
+                    onToggleItem={props.onToggleAspect}
+                    onSelectAll={props.onSelectAllAspects}
+                    onClearAll={props.onClearAllAspects}
                 />
             </div>
         </section>

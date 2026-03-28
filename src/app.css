@@ -222,11 +222,16 @@ input {
 }
 
 .filter-options-box {
-    background: rgba(15, 23, 42, 0.55);
-    border: 1px solid rgba(148, 163, 184, 0.12);
-    border-radius: 14px;
-    padding: 14px;
+    max-height: 260px;
+    overflow-y: auto;
 }
+
+/*.filter-options-box {*/
+/*    background: rgba(15, 23, 42, 0.55);*/
+/*    border: 1px solid rgba(148, 163, 184, 0.12);*/
+/*    border-radius: 14px;*/
+/*    padding: 14px;*/
+/*}*/
 
 .checkbox-grid {
     display: grid;
