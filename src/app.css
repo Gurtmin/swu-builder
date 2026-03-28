@@ -1,0 +1,173 @@
+:root {
+    font-family: Inter, Arial, sans-serif;
+    color: #f4f4f5;
+    background: #111827;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+    min-height: 100vh;
+}
+
+button,
+input {
+    font: inherit;
+}
+
+.page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+.topbar h1 {
+    margin: 0 0 4px;
+    font-size: 32px;
+}
+
+.topbar p {
+    margin: 0;
+    color: #cbd5e1;
+}
+
+.layout {
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    gap: 24px;
+    margin-top: 24px;
+}
+
+.card-panel,
+.details-panel {
+    background: rgba(17, 24, 39, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 20px;
+    padding: 20px;
+    backdrop-filter: blur(6px);
+}
+
+.card-image-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.card-image {
+    width: 100%;
+    max-width: 360px;
+    border-radius: 18px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
+.image-placeholder {
+    width: 360px;
+    height: 520px;
+    border-radius: 18px;
+    display: grid;
+    place-items: center;
+    background: #1f2937;
+    color: #94a3b8;
+}
+
+.nav-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.nav-row button {
+    border: 0;
+    border-radius: 12px;
+    padding: 10px 16px;
+    background: #2563eb;
+    color: white;
+    cursor: pointer;
+}
+
+.nav-row button:disabled {
+    background: #475569;
+    cursor: not-allowed;
+}
+
+.counter {
+    min-width: 100px;
+    text-align: center;
+    color: #cbd5e1;
+}
+
+.slider {
+    width: 100%;
+    margin: 18px 0 22px;
+}
+
+.details-panel h2 {
+    margin: 0;
+    font-size: 30px;
+}
+
+.subtitle {
+    margin-top: 6px;
+    color: #cbd5e1;
+}
+
+.info-table {
+    margin-top: 20px;
+    display: grid;
+    gap: 10px;
+}
+
+.info-row {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(30, 41, 59, 0.75);
+}
+
+.info-label {
+    color: #93c5fd;
+    font-weight: 600;
+}
+
+.info-value {
+    color: #e5e7eb;
+    word-break: break-word;
+}
+
+.rules-box {
+    margin-top: 20px;
+    padding: 16px;
+    border-radius: 14px;
+    background: rgba(30, 41, 59, 0.75);
+}
+
+.rules-box h3 {
+    margin-top: 0;
+}
+
+.status {
+    margin-top: 80px;
+    padding: 24px;
+    border-radius: 16px;
+    background: rgba(30, 41, 59, 0.85);
+}
+
+.status.error {
+    color: #fecaca;
+}
+
+@media (max-width: 900px) {
+    .layout {
+        grid-template-columns: 1fr;
+    }
+
+    .card-image {
+        max-width: 300px;
+    }
+}
