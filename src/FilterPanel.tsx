@@ -44,64 +44,68 @@ function FilterGroup({
                          onClearAll,
                      }: FilterGroupProps) {
     const selectedSet = new Set(selectedItems)
+    const modeLabel = mode === 'include' ? 'I' : 'E'
 
     return (
-        <div className="filter-section">
-            <h3>{title}</h3>
-
-            <div className="filter-mode-row">
-                <label className="radio-option">
-                    <input
-                        type="radio"
-                        name={`${title}-mode`}
-                        checked={mode === 'include'}
-                        onChange={() => onModeChange('include')}
-                    />
-                    <span>Include</span>
-                </label>
-
-                <label className="radio-option">
-                    <input
-                        type="radio"
-                        name={`${title}-mode`}
-                        checked={mode === 'exclude'}
-                        onChange={() => onModeChange('exclude')}
-                    />
-                    <span>Exclude</span>
-                </label>
+        <section className="filter-tile">
+            <div className="filter-tile-header">
+                <h3>{title}</h3>
+                <span className="filter-count">
+                    {modeLabel} · {selectedItems.length} / {items.length}
+                </span>
             </div>
 
-            <div className="filter-actions">
-                <button type="button" onClick={onSelectAll}>
-                    Zaškrtnout vše
-                </button>
-                <button type="button" onClick={onClearAll}>
-                    Zrušit vše
-                </button>
+            <div className="filter-top-row">
+                <div className="filter-segmented">
+                    <button
+                        type="button"
+                        className={mode === 'include' ? 'segmented active' : 'segmented'}
+                        onClick={() => onModeChange('include')}
+                    >
+                        Include
+                    </button>
+                    <button
+                        type="button"
+                        className={mode === 'exclude' ? 'segmented active' : 'segmented'}
+                        onClick={() => onModeChange('exclude')}
+                    >
+                        Exclude
+                    </button>
+                </div>
+
+                <div className="filter-actions">
+                    <button type="button" onClick={onSelectAll}>Vše</button>
+                    <button type="button" onClick={onClearAll}>Nic</button>
+                </div>
             </div>
 
-            <div className="checkbox-grid">
-                {items.map((item) => (
-                    <label key={item} className="checkbox-option">
-                        <input
-                            type="checkbox"
-                            checked={selectedSet.has(item)}
-                            onChange={() => onToggleItem(item)}
-                        />
-                        <span>{item}</span>
-                    </label>
-                ))}
+            <div className="filter-options-box">
+                <div className="checkbox-grid">
+                    {items.map((item) => (
+                        <label key={item} className="checkbox-chip">
+                            <input
+                                type="checkbox"
+                                checked={selectedSet.has(item)}
+                                onChange={() => onToggleItem(item)}
+                            />
+                            <span>{item}</span>
+                        </label>
+                    ))}
+                </div>
             </div>
-        </div>
+        </section>
     )
 }
 
 function FilterPanelComponent(props: FilterPanelProps) {
     return (
-        <section className="filter-panel">
-            <div className="filter-section">
-                <h3>Duplicity</h3>
-                <label className="checkbox-option">
+        <section className="filter-panel better-filter-panel">
+            <section className="filter-tile filter-tile-compact">
+                <div className="filter-tile-header">
+                    <h3>Duplicity</h3>
+                </div>
+
+                <label className="checkbox-chip checkbox-chip-large">
                     <input
                         type="checkbox"
                         checked={props.showDuplicates}
@@ -109,9 +113,9 @@ function FilterPanelComponent(props: FilterPanelProps) {
                     />
                     <span>Zobrazit duplicitní karty</span>
                 </label>
-            </div>
+            </section>
 
-            <div className="filter-groups">
+            <div className="filter-grid">
                 <FilterGroup
                     title="Typ"
                     items={props.types}

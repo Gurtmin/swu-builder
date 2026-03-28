@@ -20,7 +20,7 @@ input {
 }
 
 .page {
-    max-width: 1200px;
+    max-width: 1280px;
     margin: 0 auto;
     padding: 24px;
 }
@@ -37,48 +37,221 @@ input {
 }
 
 .toolbar-panel {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: auto minmax(220px, 1fr) auto;
     align-items: center;
-    gap: 16px;
+    gap: 18px;
     margin-bottom: 24px;
 }
 
 .toolbar-left,
-.toolbar-right {
+.toolbar-right,
+.toolbar-center {
     display: flex;
     align-items: center;
     gap: 12px;
 }
 
+.toolbar-center {
+    justify-content: center;
+}
+
 .toolbar-panel button,
-.filter-toggle {
+.filter-toggle,
+.filter-actions button,
+.segmented {
     border: 0;
     border-radius: 12px;
     padding: 10px 16px;
-    background: #2563eb;
     color: white;
     cursor: pointer;
+    transition:
+            background-color 0.15s ease,
+            opacity 0.15s ease,
+            transform 0.15s ease;
+}
+
+.toolbar-panel button,
+.filter-toggle {
+    background: #2563eb;
+}
+
+.toolbar-panel button:hover,
+.filter-toggle:hover,
+.filter-actions button:hover,
+.segmented:hover {
+    transform: translateY(-1px);
 }
 
 .toolbar-panel button:disabled {
     background: #475569;
     cursor: not-allowed;
+    transform: none;
 }
 
 .counter {
     min-width: 100px;
     text-align: center;
     color: #cbd5e1;
+    font-weight: 600;
 }
+
+.toolbar-slider {
+    width: 100%;
+    margin: 0;
+}
+
+/* FILTERS */
 
 .filter-panel {
     margin-bottom: 24px;
 }
 
-.filter-placeholder {
-    color: #cbd5e1;
+.better-filter-panel {
+    display: grid;
+    gap: 20px;
 }
+
+.filter-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+}
+
+.filter-tile {
+    background: rgba(30, 41, 59, 0.72);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 18px;
+    padding: 18px;
+}
+
+.filter-tile-compact {
+    padding: 16px 18px;
+}
+
+.filter-tile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.filter-tile-header h3,
+.filter-section h3 {
+    margin: 0;
+    font-size: 22px;
+    color: #f8fafc;
+}
+
+.filter-count {
+    font-size: 14px;
+    color: #94a3b8;
+    background: rgba(15, 23, 42, 0.8);
+    border-radius: 999px;
+    padding: 6px 10px;
+    white-space: nowrap;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.filter-section {
+    margin-bottom: 24px;
+}
+
+.filter-section:last-child {
+    margin-bottom: 0;
+}
+
+.filter-segmented {
+    display: inline-flex;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 12px;
+    padding: 4px;
+    gap: 4px;
+    margin-bottom: 14px;
+}
+
+.segmented {
+    background: transparent;
+    color: #cbd5e1;
+    padding: 8px 14px;
+}
+
+.segmented.active {
+    background: #2563eb;
+    color: white;
+}
+
+.filter-mode-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.radio-option,
+.checkbox-option,
+.checkbox-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #e5e7eb;
+}
+
+.filter-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+
+.filter-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 0;
+}
+
+.filter-actions button {
+    background: #334155;
+    padding: 8px 12px;
+}
+
+.filter-options-box {
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    border-radius: 14px;
+    padding: 14px;
+}
+
+.checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px;
+}
+
+.checkbox-chip {
+    min-height: 40px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(30, 41, 59, 0.72);
+}
+
+.checkbox-chip-large {
+    min-height: 46px;
+}
+
+.checkbox-chip input,
+.checkbox-option input,
+.radio-option input {
+    margin: 0;
+}
+
+/* MAIN CONTENT */
 
 .layout {
     display: grid;
@@ -138,11 +311,6 @@ input {
     color: #94a3b8;
 }
 
-.slider {
-    width: 100%;
-    margin: 0 0 22px;
-}
-
 .details-panel h2 {
     margin: 0;
     font-size: 30px;
@@ -200,14 +368,22 @@ input {
     color: #fecaca;
 }
 
+/* RESPONSIVE */
+
+@media (max-width: 1000px) {
+    .filter-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 @media (max-width: 900px) {
     .toolbar-panel {
-        flex-direction: column;
-        align-items: stretch;
+        grid-template-columns: 1fr;
     }
 
     .toolbar-left,
-    .toolbar-right {
+    .toolbar-right,
+    .toolbar-center {
         width: 100%;
         justify-content: center;
         flex-wrap: wrap;
@@ -217,83 +393,13 @@ input {
         grid-template-columns: 1fr;
     }
 
-    .card-image {
+    .card-image,
+    .card-image-frame {
         max-width: 300px;
     }
-    .toolbar-center {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
 
-    .toolbar-slider {
-        width: 100%;
-        margin: 0;
-    }
-
-    .filter-groups {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 24px;
-    }
-
-    .filter-section h3 {
-        margin-top: 0;
-        margin-bottom: 16px;
-    }
-
-    .filter-mode-row {
-        display: flex;
-        gap: 16px;
-        margin-bottom: 16px;
-        flex-wrap: wrap;
-    }
-
-    .radio-option,
-    .checkbox-option {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        color: #e5e7eb;
-    }
-
-    .filter-actions {
-        display: flex;
-        gap: 12px;
-        margin-bottom: 18px;
-        flex-wrap: wrap;
-    }
-
-    .filter-actions button {
-        border: 0;
-        border-radius: 10px;
-        padding: 8px 14px;
-        background: #334155;
-        color: white;
-        cursor: pointer;
-    }
-
-    .checkbox-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-        gap: 10px 18px;
-    }
-
-    @media (max-width: 900px) {
-        .toolbar-panel {
-            grid-template-columns: 1fr;
-        }
-
-        .toolbar-left,
-        .toolbar-right,
-        .toolbar-center {
-            width: 100%;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .filter-groups {
-            grid-template-columns: 1fr;
-        }
+    .image-placeholder {
+        width: 300px;
+        height: 435px;
     }
 }
