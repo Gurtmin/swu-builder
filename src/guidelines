@@ -1,0 +1,82 @@
+Guidelines pro další promptování
+Zdroj pravdy
+Vždy vycházej z aktuálního stavu repa: https://github.com/Gurtmin/swu-builder.git
+Nevracej se ke starším návrhům, pokud nejsou v aktuálním GitHubu.
+Před návrhem změn vždy ber jako rozhodující to, co je teď v repu.
+Formát odpovědí
+U změn v kódu dávej ideálně:
+celý soubor, pokud je změn víc
+nebo přesný blok „nahraď toto tímto“, pokud je změna malá
+Když je soubor ve špatně čitelné podobě nebo bez formátování, raději pošli celý nový obsah.
+Nevysvětluj zbytečně obecně, spíš napiš přesně co vložit a kam.
+Datový model
+Vždy počítej s vnořenou strukturou dat:
+card.attributes.title
+card.attributes.subtitle
+card.attributes.type?.data?.attributes?.name
+card.attributes.expansion?.data?.attributes?.name
+card.attributes.rarity?.data?.attributes?.name
+card.attributes.artFront?.data?.attributes?.formats?.card?.url
+Nikdy se nevracej k plochému modelu typu:
+card.title
+card.frontArt?.url
+card.expansion?.name
+Filtry
+Typ, Edice, Rarita jsou single-value filtry.
+Traits a Aspekty jsou multi-value filtry.
+Pro Traits a Aspekty má platit:
+include: karta projde, pokud obsahuje alespoň jednu z vybraných hodnot
+exclude: karta projde, pokud neobsahuje žádnou z vybraných hodnot
+Defaultně mají být filtry postavené tak, aby UI bylo rozšiřitelné o další sekce.
+Duplicity
+Defaultně duplicity nezobrazovat.
+Duplicita je určena kombinací:
+title + subtitle
+Pokud jsou duplicity zapnuté, musí být seřazené tak, aby byly vždy u sebe.
+UX / UI očekávání
+Zachovat čistý, přehledný layout.
+Filtry ideálně jako samostatné dlaždice / karty.
+Tlačítka a přepínače držet na jednom řádku, pokud to dává smysl.
+Když se načítá obrázek nové karty, musí být vidět loading stav.
+Když už je nějaká hodnota zobrazená jako nadpis, neopakovat ji zbytečně v atributech.
+TypeScript pravidla
+Dávat pozor na string | undefined.
+Pokud se mapují názvy z relations, vždy je čistit přes type guard.
+Preferovat helpery typu:
+isNonEmptyString(...)
+getRelationNames(...)
+Neposílat do Set.has, includes, setState hodnoty, které můžou být undefined.
+Styl spolupráce
+Když navrhuješ další změnu, navazuj na to, co už bylo hotové.
+Nedělej znovu změny, které už uživatel opravil sám.
+Když uživatel řekne, že něco funguje, ber to jako hotové a stav na tom.
+Pokud si nejsi jistý aktuálním stavem, nejdřív zkontroluj repo a až pak navrhuj úpravy.
+Preferovaný způsob zadání
+
+Dobré prompty vypadají třeba takto:
+
+„Koukni do aktuální verze repo a uprav pouze FilterPanel.tsx.“
+„Navrhni změnu jen jako celý soubor.“
+„Nevysvětluj teorii, pošli mi přesně co nahradit.“
+„Vycházej z aktuálního GitHubu, ne ze starších návrhů.“
+„Zachovej současný layout a doplň jen filtr Rarita.“
+Doporučený prompt template
+Vycházej z aktuálního stavu repo https://github.com/Gurtmin/swu-builder.git.
+
+Potřebuji upravit [soubor / feature].
+
+Pravidla:
+- používej vnořenou strukturu card.attributes...
+- nevrať se k plochému modelu
+- zachovej současný layout
+- pošli raději celý soubor než dílčí útržky
+- změň jen to, co je potřeba
+
+Konkrétně chci:
+- ...
+- ...
+- ...
+Krátká verze pro opakované použití
+Vycházej jen z aktuální verze swu-builder na GitHubu. Používej card.attributes..., ne plochý model. Navazuj na existující řešení, nic nerozbíjej, pošli ideálně celý výsledný soubor.
+
+Jestli chceš, můžu ti z toho udělat ještě i kratší “system prompt” verzi pro copy-paste na začátek každého dalšího zadání.
