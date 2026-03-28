@@ -104,6 +104,9 @@ function matchesFilter(value: string, mode: FilterMode, selected: Set<string>): 
 }
 
 export default function App() {
+    const [imageLoading, setImageLoading] = useState(true)
+    const [imageError, setImageError] = useState(false)
+
     const [cards, setCards] = useState<SwuCard[]>([])
     const [index, setIndex] = useState(0)
     const [loading, setLoading] = useState(true)
@@ -246,6 +249,13 @@ export default function App() {
         ]
     }, [current])
 
+    const imageUrl = current ? getImageUrl(current) : null
+
+    useEffect(() => {
+        setImageLoading(true)
+        setImageError(false)
+    }, [imageUrl])
+
     function previousCard() {
         setIndex((prev) => Math.max(prev - 1, 0))
     }
@@ -375,12 +385,32 @@ export default function App() {
                 <main className="layout">
                     <section className="card-panel">
                         <div className="card-image-wrap">
-                            {getImageUrl(current) ? (
-                                <img
-                                    className="card-image"
-                                    src={getImageUrl(current)!}
-                                    alt={getCardName(current)}
-                                />
+                            {imageUrl ? (
+                                <div className="card-image-frame">
+                                    <img
+                                        key={imageUrl}
+                                        className={`card-image ${imageLoading ? 'card-image-loading' : ''}`}
+                                        src={imageUrl}
+                                        alt={getCardName(current)}
+                                        onLoad={() => setImageLoading(false)}
+                                        onError={() => {
+                                            setImageLoading(false)
+                                            setImageError(true)
+                                        }}
+                                    />
+
+                                    {imageLoading ? (
+                                        <div className="card-image-overlay">
+                                            Načítám obrázek…
+                                        </div>
+                                    ) : null}
+
+                                    {imageError ? (
+                                        <div className="card-image-overlay card-image-overlay-error">
+                                            Obrázek se nepodařilo načíst
+                                        </div>
+                                    ) : null}
+                                </div>
                             ) : (
                                 <div className="image-placeholder">Bez obrázku</div>
                             )}
