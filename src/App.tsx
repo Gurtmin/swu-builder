@@ -140,6 +140,10 @@ export default function App() {
         setIndex((prev) => Math.min(prev + 1, cards.length - 1))
     }
 
+    function onSliderChange(value: string) {
+        setIndex(Number(value))
+    }
+
     if (loading) {
         return (
             <div className="page">
@@ -166,15 +170,31 @@ export default function App() {
 
     return (
         <div className="page">
-            <header className="topbar topbar-right">
-                <button
-                    className="filter-toggle"
-                    type="button"
-                    onClick={() => setFiltersOpen((prev) => !prev)}
-                >
-                    {filtersOpen ? 'Skrýt filtry' : 'Rozbalit filtry'}
-                </button>
-            </header>
+            <section className="toolbar-panel">
+                <div className="toolbar-left">
+                    <button onClick={previousCard} disabled={index === 0}>
+                        Předchozí
+                    </button>
+
+                    <div className="counter">
+                        {index + 1} / {cards.length}
+                    </div>
+
+                    <button onClick={nextCard} disabled={index === cards.length - 1}>
+                        Další
+                    </button>
+                </div>
+
+                <div className="toolbar-right">
+                    <button
+                        className="filter-toggle"
+                        type="button"
+                        onClick={() => setFiltersOpen((prev) => !prev)}
+                    >
+                        {filtersOpen ? 'Skrýt filtry' : 'Rozbalit filtry'}
+                    </button>
+                </div>
+            </section>
 
             {filtersOpen ? (
                 <section className="filter-panel">
@@ -200,29 +220,20 @@ export default function App() {
                 </section>
 
                 <section className="details-panel">
-                    <div className="nav-row">
-                        <button onClick={previousCard} disabled={index === 0}>
-                            Předchozí
-                        </button>
-                        <div className="counter">
-                            {index + 1} / {cards.length}
-                        </div>
-                        <button onClick={nextCard} disabled={index === cards.length - 1}>
-                            Další
-                        </button>
-                    </div>
-
                     <input
                         className="slider"
                         type="range"
                         min={0}
                         max={Math.max(cards.length - 1, 0)}
                         value={index}
-                        onChange={(e) => setIndex(Number(e.target.value))}
+                        onChange={(e) => onSliderChange(e.target.value)}
                     />
 
                     <h2>{getCardName(current)}</h2>
-                    {getSubtitle(current) ? <p className="subtitle">{getSubtitle(current)}</p> : null}
+
+                    {getSubtitle(current) ? (
+                        <p className="subtitle">{getSubtitle(current)}</p>
+                    ) : null}
 
                     <div className="info-table">
                         {infoRows.map(([label, value]) => (

@@ -25,16 +25,33 @@ input {
     padding: 24px;
 }
 
-.topbar {
+.toolbar-panel,
+.card-panel,
+.details-panel,
+.filter-panel {
+    background: rgba(17, 24, 39, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 20px;
+    padding: 20px;
+    backdrop-filter: blur(6px);
+}
+
+.toolbar-panel {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.toolbar-left,
+.toolbar-right {
     display: flex;
     align-items: center;
-    margin-bottom: 16px;
+    gap: 12px;
 }
 
-.topbar-right {
-    justify-content: flex-end;
-}
-
+.toolbar-panel button,
 .filter-toggle {
     border: 0;
     border-radius: 12px;
@@ -44,13 +61,19 @@ input {
     cursor: pointer;
 }
 
+.toolbar-panel button:disabled {
+    background: #475569;
+    cursor: not-allowed;
+}
+
+.counter {
+    min-width: 100px;
+    text-align: center;
+    color: #cbd5e1;
+}
+
 .filter-panel {
-    margin-bottom: 20px;
-    background: rgba(17, 24, 39, 0.9);
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    border-radius: 20px;
-    padding: 20px;
-    backdrop-filter: blur(6px);
+    margin-bottom: 24px;
 }
 
 .filter-placeholder {
@@ -61,15 +84,6 @@ input {
     display: grid;
     grid-template-columns: 420px 1fr;
     gap: 24px;
-}
-
-.card-panel,
-.details-panel {
-    background: rgba(17, 24, 39, 0.9);
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    border-radius: 20px;
-    padding: 20px;
-    backdrop-filter: blur(6px);
 }
 
 .card-image-wrap {
@@ -95,35 +109,9 @@ input {
     color: #94a3b8;
 }
 
-.nav-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.nav-row button {
-    border: 0;
-    border-radius: 12px;
-    padding: 10px 16px;
-    background: #2563eb;
-    color: white;
-    cursor: pointer;
-}
-
-.nav-row button:disabled {
-    background: #475569;
-    cursor: not-allowed;
-}
-
-.counter {
-    min-width: 100px;
-    text-align: center;
-    color: #cbd5e1;
-}
-
 .slider {
     width: 100%;
-    margin: 18px 0 22px;
+    margin: 0 0 22px;
 }
 
 .details-panel h2 {
@@ -184,19 +172,23 @@ input {
 }
 
 @media (max-width: 900px) {
+    .toolbar-panel {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .toolbar-left,
+    .toolbar-right {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
     .layout {
         grid-template-columns: 1fr;
     }
 
     .card-image {
         max-width: 300px;
-    }
-
-    .topbar-right {
-        justify-content: stretch;
-    }
-
-    .filter-toggle {
-        width: 100%;
     }
 }
