@@ -4,6 +4,11 @@ import type { FilterMode, SwuCard } from './types'
 
 const DATA_URL = import.meta.env.VITE_CARDS_URL || '/cards.json'
 
+type RangeValue = {
+    min: string
+    max: string
+}
+
 function getCardName(card: SwuCard): string {
     return card.attributes.title || 'Unknown card'
 }
@@ -14,6 +19,7 @@ function getSubtitle(card: SwuCard): string | null {
 
 function getImageUrl(card: SwuCard): string | null {
     const media = card.attributes.artFront?.data?.attributes
+
     return (
         media?.formats?.card?.url ||
         media?.formats?.medium?.url ||
@@ -26,6 +32,7 @@ function getImageUrl(card: SwuCard): string | null {
 function getDeduplicationKey(card: SwuCard): string {
     const title = (card.attributes.title || '').trim().toLowerCase()
     const subtitle = (card.attributes.subtitle || '').trim().toLowerCase()
+
     return `${title}|||${subtitle}`
 }
 
@@ -61,7 +68,9 @@ function getRarity(card: SwuCard): string {
 
 function getTraits(card: SwuCard): string {
     const items = card.attributes.traits?.data || []
+
     if (!items.length) return '—'
+
     return items
         .map((item) => item.attributes?.name || item.attributes?.title)
         .filter(Boolean)
@@ -70,7 +79,9 @@ function getTraits(card: SwuCard): string {
 
 function getAspects(card: SwuCard): string {
     const items = card.attributes.aspects?.data || []
+
     if (!items.length) return '—'
+
     return items
         .map((item) => item.attributes?.name || item.attributes?.title)
         .filter(Boolean)
@@ -79,7 +90,9 @@ function getAspects(card: SwuCard): string {
 
 function getArenas(card: SwuCard): string {
     const items = card.attributes.arenas?.data || []
+
     if (!items.length) return '—'
+
     return items
         .map((item) => item.attributes?.name || item.attributes?.title)
         .filter(Boolean)
@@ -87,15 +100,14 @@ function getArenas(card: SwuCard): string {
 }
 
 function getRulesText(card: SwuCard): string | null {
-    return (
-        card.attributes.text ||
-        card.attributes.deployBox ||
-        card.attributes.epicAction ||
-        null
-    )
+    return card.attributes.text || card.attributes.deployBox || card.attributes.epicAction || null
 }
 
 function matchesFilter(value: string, mode: FilterMode, selected: Set<string>): boolean {
+    if (selected.size === 0) {
+        return mode === 'include' ? false : true
+    }
+
     if (mode === 'include') {
         return selected.has(value)
     }
@@ -131,10 +143,55 @@ function matchesMultiValueFilter(
     return values.every((value) => !selected.has(value))
 }
 
+function getNumericValue(value: number | null | undefined): number | null {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function matchesRange(value: number | null, range: RangeValue): boolean {
+    const min = range.min.trim()
+    const max = range.max.trim()
+
+    if (min === '' && max === '') {
+        return true
+    }
+
+    if (value === null) {
+        return false
+    }
+
+    if (min !== '' && value < Number(min)) {
+        return false
+    }
+
+    if (max !== '' && value > Number(max)) {
+        return false
+    }
+
+    return true
+}
+
+function matchesKeyword(card: SwuCard, keyword: string): boolean {
+    const normalizedKeyword = keyword.trim().toLowerCase()
+
+    if (!normalizedKeyword) {
+        return true
+    }
+
+    const title = (card.attributes.title || '').toLowerCase()
+    const text = (
+        card.attributes.text ||
+        card.attributes.deployBox ||
+        card.attributes.epicAction ||
+        ''
+    ).toLowerCase()
+
+    return title.includes(normalizedKeyword) || text.includes(normalizedKeyword)
+}
+
 export default function App() {
+    const [keyword, setKeyword] = useState('')
     const [imageLoading, setImageLoading] = useState(true)
     const [imageError, setImageError] = useState(false)
-
     const [cards, setCards] = useState<SwuCard[]>([])
     const [index, setIndex] = useState(0)
     const [loading, setLoading] = useState(true)
@@ -156,6 +213,10 @@ export default function App() {
     const [aspectFilterMode, setAspectFilterMode] = useState<FilterMode>('include')
     const [selectedAspects, setSelectedAspects] = useState<string[]>([])
 
+    const [costRange, setCostRange] = useState<RangeValue>({ min: '', max: '' })
+    const [powerRange, setPowerRange] = useState<RangeValue>({ min: '', max: '' })
+    const [hpRange, setHpRange] = useState<RangeValue>({ min: '', max: '' })
+
     const [showDuplicates, setShowDuplicates] = useState(false)
 
     useEffect(() => {
@@ -167,6 +228,7 @@ export default function App() {
                 setError(null)
 
                 const response = await fetch(DATA_URL)
+
                 if (!response.ok) {
                     throw new Error(`Failed to load cards: ${response.status}`)
                 }
@@ -189,6 +251,7 @@ export default function App() {
         }
 
         loadCards()
+
         return () => {
             cancelled = true
         }
@@ -223,61 +286,52 @@ export default function App() {
         return [...new Set(baseCards.map(getExpansion).filter((value) => value && value !== '—'))].sort()
     }, [baseCards])
 
-    useEffect(() => {
-        if (availableTypes.length === 0) return
-
-        setSelectedTypes((prev) => {
-            if (prev.length > 0) return prev
-            return availableTypes
-        })
-    }, [availableTypes])
-
-    useEffect(() => {
-        if (availableExpansions.length === 0) return
-
-        setSelectedExpansions((prev) => {
-            if (prev.length > 0) return prev
-            return availableExpansions
-        })
-    }, [availableExpansions])
-
     const availableRarities = useMemo(() => {
-        return [...new Set(baseCards.map(getRarity).filter(v => v && v !== '—'))].sort()
+        return [...new Set(baseCards.map(getRarity).filter((value) => value && value !== '—'))].sort()
     }, [baseCards])
 
     const availableTraits = useMemo(() => {
-        return [...new Set(
-            baseCards.flatMap(card =>
-                (card.attributes.traits?.data || [])
-                    .map(t => t.attributes?.name || t.attributes?.title)
-                    .filter(isNonEmptyString)
-            ).filter(Boolean)
-        )].sort()
+        return [
+            ...new Set(
+                baseCards.flatMap((card) =>
+                    (card.attributes.traits?.data || [])
+                        .map((item) => item.attributes?.name || item.attributes?.title)
+                        .filter(isNonEmptyString),
+                ),
+            ),
+        ].sort()
     }, [baseCards])
 
     const availableAspects = useMemo(() => {
-        return [...new Set(
-            baseCards.flatMap(card =>
-                (card.attributes.aspects?.data || [])
-                    .map(a => a.attributes?.name || a.attributes?.title)
-                    .filter(isNonEmptyString)
-            ).filter(Boolean)
-        )].sort()
+        return [
+            ...new Set(
+                baseCards.flatMap((card) =>
+                    (card.attributes.aspects?.data || [])
+                        .map((item) => item.attributes?.name || item.attributes?.title)
+                        .filter(isNonEmptyString),
+                ),
+            ),
+        ].sort()
     }, [baseCards])
 
     useEffect(() => {
-        if (availableRarities.length === 0) return
-        setSelectedRarities(prev => prev.length ? prev : availableRarities)
+        setSelectedTypes((prev) => (prev.length > 0 ? prev : availableTypes))
+    }, [availableTypes])
+
+    useEffect(() => {
+        setSelectedExpansions((prev) => (prev.length > 0 ? prev : availableExpansions))
+    }, [availableExpansions])
+
+    useEffect(() => {
+        setSelectedRarities((prev) => (prev.length > 0 ? prev : availableRarities))
     }, [availableRarities])
 
     useEffect(() => {
-        if (availableTraits.length === 0) return
-        setSelectedTraits(prev => prev.length ? prev : availableTraits)
+        setSelectedTraits((prev) => (prev.length > 0 ? prev : availableTraits))
     }, [availableTraits])
 
     useEffect(() => {
-        if (availableAspects.length === 0) return
-        setSelectedAspects(prev => prev.length ? prev : availableAspects)
+        setSelectedAspects((prev) => (prev.length > 0 ? prev : availableAspects))
     }, [availableAspects])
 
     const filteredCards = useMemo(() => {
@@ -293,16 +347,23 @@ export default function App() {
             const type = getType(card)
             const expansion = getExpansion(card)
             const rarity = getRarity(card)
-
             const traits = getRelationNames(card.attributes.traits?.data)
             const aspects = getRelationNames(card.attributes.aspects?.data)
+
+            const cost = getNumericValue(card.attributes.cost)
+            const power = getNumericValue(card.attributes.power)
+            const hp = getNumericValue(card.attributes.hp)
 
             return (
                 matchesFilter(type, typeFilterMode, selectedTypeSet) &&
                 matchesFilter(expansion, expansionFilterMode, selectedExpansionSet) &&
                 matchesFilter(rarity, rarityFilterMode, selectedRaritySet) &&
                 matchesMultiValueFilter(traits, traitFilterMode, selectedTraitSet) &&
-                matchesMultiValueFilter(aspects, aspectFilterMode, selectedAspectSet)
+                matchesMultiValueFilter(aspects, aspectFilterMode, selectedAspectSet) &&
+                matchesRange(cost, costRange) &&
+                matchesRange(power, powerRange) &&
+                matchesRange(hp, hpRange) &&
+                matchesKeyword(card, keyword)
             )
         })
     }, [
@@ -317,11 +378,30 @@ export default function App() {
         traitFilterMode,
         selectedAspects,
         aspectFilterMode,
+        costRange,
+        powerRange,
+        hpRange,
     ])
 
     useEffect(() => {
         setIndex(0)
-    }, [showDuplicates, selectedTypes, typeFilterMode, selectedExpansions, expansionFilterMode])
+    }, [
+        showDuplicates,
+        selectedTypes,
+        typeFilterMode,
+        selectedExpansions,
+        expansionFilterMode,
+        selectedRarities,
+        rarityFilterMode,
+        selectedTraits,
+        traitFilterMode,
+        selectedAspects,
+        aspectFilterMode,
+        costRange,
+        powerRange,
+        hpRange,
+        keyword,
+    ])
 
     useEffect(() => {
         if (index >= filteredCards.length) {
@@ -368,46 +448,45 @@ export default function App() {
 
     function toggleType(type: string) {
         setSelectedTypes((prev) =>
-            prev.includes(type)
-                ? prev.filter((item) => item !== type)
-                : [...prev, type],
+            prev.includes(type) ? prev.filter((item) => item !== type) : [...prev, type],
         )
     }
 
     function toggleExpansion(expansion: string) {
         setSelectedExpansions((prev) =>
-            prev.includes(expansion)
-                ? prev.filter((item) => item !== expansion)
-                : [...prev, expansion],
+            prev.includes(expansion) ? prev.filter((item) => item !== expansion) : [...prev, expansion],
         )
     }
 
-    function toggleRarity(v: string) {
-        setSelectedRarities(prev =>
-            prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]
+    function toggleRarity(value: string) {
+        setSelectedRarities((prev) =>
+            prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value],
         )
     }
 
-    function toggleTrait(v: string) {
-        setSelectedTraits(prev =>
-            prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]
+    function toggleTrait(value: string) {
+        setSelectedTraits((prev) =>
+            prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value],
         )
     }
 
-    function toggleAspect(v: string) {
-        setSelectedAspects(prev =>
-            prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]
+    function toggleAspect(value: string) {
+        setSelectedAspects((prev) =>
+            prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value],
         )
     }
 
-    const selectAllRarities = () => setSelectedRarities(availableRarities)
-    const clearAllRarities = () => setSelectedRarities([])
+    function updateCostRange(part: 'min' | 'max', value: string) {
+        setCostRange((prev) => ({ ...prev, [part]: value }))
+    }
 
-    const selectAllTraits = () => setSelectedTraits(availableTraits)
-    const clearAllTraits = () => setSelectedTraits([])
+    function updatePowerRange(part: 'min' | 'max', value: string) {
+        setPowerRange((prev) => ({ ...prev, [part]: value }))
+    }
 
-    const selectAllAspects = () => setSelectedAspects(availableAspects)
-    const clearAllAspects = () => setSelectedAspects([])
+    function updateHpRange(part: 'min' | 'max', value: string) {
+        setHpRange((prev) => ({ ...prev, [part]: value }))
+    }
 
     function selectAllTypes() {
         setSelectedTypes(availableTypes)
@@ -423,6 +502,53 @@ export default function App() {
 
     function clearAllExpansions() {
         setSelectedExpansions([])
+    }
+
+    function selectAllRarities() {
+        setSelectedRarities(availableRarities)
+    }
+
+    function clearAllRarities() {
+        setSelectedRarities([])
+    }
+
+    function selectAllTraits() {
+        setSelectedTraits(availableTraits)
+    }
+
+    function clearAllTraits() {
+        setSelectedTraits([])
+    }
+
+    function selectAllAspects() {
+        setSelectedAspects(availableAspects)
+    }
+
+    function clearAllAspects() {
+        setSelectedAspects([])
+    }
+
+    function resetToDefaultFilters() {
+        setShowDuplicates(false)
+
+        setTypeFilterMode('include')
+        setExpansionFilterMode('include')
+        setRarityFilterMode('include')
+        setTraitFilterMode('include')
+        setAspectFilterMode('include')
+
+        setSelectedTypes(availableTypes)
+        setSelectedExpansions(availableExpansions)
+        setSelectedRarities(availableRarities)
+        setSelectedTraits(availableTraits)
+        setSelectedAspects(availableAspects)
+
+        setCostRange({ min: '', max: '' })
+        setPowerRange({ min: '', max: '' })
+        setHpRange({ min: '', max: '' })
+
+        setIndex(0)
+        setKeyword('')
     }
 
     if (loading) {
@@ -445,7 +571,7 @@ export default function App() {
         <div className="page">
             <section className="toolbar-panel">
                 <div className="toolbar-left">
-                    <button onClick={previousCard} disabled={index === 0 || filteredCards.length === 0}>
+                    <button onClick={previousCard} disabled={index <= 0 || filteredCards.length === 0}>
                         Předchozí
                     </button>
 
@@ -455,7 +581,7 @@ export default function App() {
 
                     <button
                         onClick={nextCard}
-                        disabled={filteredCards.length === 0 || index === filteredCards.length - 1}
+                        disabled={filteredCards.length === 0 || index >= filteredCards.length - 1}
                     >
                         Další
                     </button>
@@ -463,83 +589,88 @@ export default function App() {
 
                 <div className="toolbar-center">
                     <input
-                        className="slider toolbar-slider"
+                        className="toolbar-slider"
                         type="range"
                         min={0}
                         max={Math.max(filteredCards.length - 1, 0)}
                         value={Math.min(index, Math.max(filteredCards.length - 1, 0))}
                         onChange={(e) => onSliderChange(e.target.value)}
+                        disabled={filteredCards.length === 0}
                     />
                 </div>
 
                 <div className="toolbar-right">
-                    <button
-                        className="filter-toggle"
-                        type="button"
-                        onClick={() => setFiltersOpen((prev) => !prev)}
-                    >
+                    <button className="filter-toggle" onClick={() => setFiltersOpen((prev) => !prev)}>
                         {filtersOpen ? 'Skrýt filtry' : 'Rozbalit filtry'}
                     </button>
                 </div>
             </section>
 
             {filtersOpen ? (
-                <FilterPanel
-                    showDuplicates={showDuplicates}
-                    onShowDuplicatesChange={setShowDuplicates}
-
-                    types={availableTypes}
-                    typeMode={typeFilterMode}
-                    selectedTypes={selectedTypes}
-                    onTypeModeChange={setTypeFilterMode}
-                    onToggleType={toggleType}
-                    onSelectAllTypes={selectAllTypes}
-                    onClearAllTypes={clearAllTypes}
-
-                    expansions={availableExpansions}
-                    expansionMode={expansionFilterMode}
-                    selectedExpansions={selectedExpansions}
-                    onExpansionModeChange={setExpansionFilterMode}
-                    onToggleExpansion={toggleExpansion}
-                    onSelectAllExpansions={selectAllExpansions}
-                    onClearAllExpansions={clearAllExpansions}
-
-                    rarities={availableRarities}
-                    rarityMode={rarityFilterMode}
-                    selectedRarities={selectedRarities}
-                    onRarityModeChange={setRarityFilterMode}
-                    onToggleRarity={toggleRarity}
-                    onSelectAllRarities={selectAllRarities}
-                    onClearAllRarities={clearAllRarities}
-
-                    traits={availableTraits}
-                    traitMode={traitFilterMode}
-                    selectedTraits={selectedTraits}
-                    onTraitModeChange={setTraitFilterMode}
-                    onToggleTrait={toggleTrait}
-                    onSelectAllTraits={selectAllTraits}
-                    onClearAllTraits={clearAllTraits}
-
-                    aspects={availableAspects}
-                    aspectMode={aspectFilterMode}
-                    selectedAspects={selectedAspects}
-                    onAspectModeChange={setAspectFilterMode}
-                    onToggleAspect={toggleAspect}
-                    onSelectAllAspects={selectAllAspects}
-                    onClearAllAspects={clearAllAspects}
-                />
+                <section className="filter-panel">
+                    <FilterPanel
+                        keyword={keyword}
+                        onKeywordChange={setKeyword}
+                        showDuplicates={showDuplicates}
+                        onShowDuplicatesChange={setShowDuplicates}
+                        onResetToDefaults={resetToDefaultFilters}
+                        types={availableTypes}
+                        typeMode={typeFilterMode}
+                        selectedTypes={selectedTypes}
+                        onTypeModeChange={setTypeFilterMode}
+                        onToggleType={toggleType}
+                        onSelectAllTypes={selectAllTypes}
+                        onClearAllTypes={clearAllTypes}
+                        rarities={availableRarities}
+                        rarityMode={rarityFilterMode}
+                        selectedRarities={selectedRarities}
+                        onRarityModeChange={setRarityFilterMode}
+                        onToggleRarity={toggleRarity}
+                        onSelectAllRarities={selectAllRarities}
+                        onClearAllRarities={clearAllRarities}
+                        traits={availableTraits}
+                        traitMode={traitFilterMode}
+                        selectedTraits={selectedTraits}
+                        onTraitModeChange={setTraitFilterMode}
+                        onToggleTrait={toggleTrait}
+                        onSelectAllTraits={selectAllTraits}
+                        onClearAllTraits={clearAllTraits}
+                        aspects={availableAspects}
+                        aspectMode={aspectFilterMode}
+                        selectedAspects={selectedAspects}
+                        onAspectModeChange={setAspectFilterMode}
+                        onToggleAspect={toggleAspect}
+                        onSelectAllAspects={selectAllAspects}
+                        onClearAllAspects={clearAllAspects}
+                        expansions={availableExpansions}
+                        expansionMode={expansionFilterMode}
+                        selectedExpansions={selectedExpansions}
+                        onExpansionModeChange={setExpansionFilterMode}
+                        onToggleExpansion={toggleExpansion}
+                        onSelectAllExpansions={selectAllExpansions}
+                        onClearAllExpansions={clearAllExpansions}
+                        costRange={costRange}
+                        onCostMinChange={(value) => updateCostRange('min', value)}
+                        onCostMaxChange={(value) => updateCostRange('max', value)}
+                        powerRange={powerRange}
+                        onPowerMinChange={(value) => updatePowerRange('min', value)}
+                        onPowerMaxChange={(value) => updatePowerRange('max', value)}
+                        hpRange={hpRange}
+                        onHpMinChange={(value) => updateHpRange('min', value)}
+                        onHpMaxChange={(value) => updateHpRange('max', value)}
+                    />
+                </section>
             ) : null}
 
             {!current ? (
                 <div className="status">Po aplikaci filtrů nezůstala žádná karta.</div>
             ) : (
-                <main className="layout">
+                <div className="layout">
                     <section className="card-panel">
                         <div className="card-image-wrap">
                             {imageUrl ? (
                                 <div className="card-image-frame">
                                     <img
-                                        key={imageUrl}
                                         className={`card-image ${imageLoading ? 'card-image-loading' : ''}`}
                                         src={imageUrl}
                                         alt={getCardName(current)}
@@ -550,11 +681,7 @@ export default function App() {
                                         }}
                                     />
 
-                                    {imageLoading ? (
-                                        <div className="card-image-overlay">
-                                            Načítám obrázek…
-                                        </div>
-                                    ) : null}
+                                    {imageLoading ? <div className="card-image-overlay">Načítám obrázek…</div> : null}
 
                                     {imageError ? (
                                         <div className="card-image-overlay card-image-overlay-error">
@@ -571,13 +698,11 @@ export default function App() {
                     <section className="details-panel">
                         <h2>{getCardName(current)}</h2>
 
-                        {getSubtitle(current) ? (
-                            <p className="subtitle">{getSubtitle(current)}</p>
-                        ) : null}
+                        {getSubtitle(current) ? <div className="subtitle">{getSubtitle(current)}</div> : null}
 
                         <div className="info-table">
                             {infoRows.map(([label, value]) => (
-                                <div className="info-row" key={label}>
+                                <div key={label} className="info-row">
                                     <div className="info-label">{label}</div>
                                     <div className="info-value">{String(value)}</div>
                                 </div>
@@ -587,11 +712,11 @@ export default function App() {
                         {getRulesText(current) ? (
                             <div className="rules-box">
                                 <h3>Text karty</h3>
-                                <p style={{ whiteSpace: 'pre-line' }}>{getRulesText(current)}</p>
+                                <div>{getRulesText(current)}</div>
                             </div>
                         ) : null}
                     </section>
-                </main>
+                </div>
             )}
         </div>
     )
