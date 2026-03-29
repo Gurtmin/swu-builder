@@ -381,6 +381,7 @@ export default function App() {
         costRange,
         powerRange,
         hpRange,
+        keyword,
     ])
 
     useEffect(() => {
