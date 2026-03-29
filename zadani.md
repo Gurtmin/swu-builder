@@ -1,7 +1,7 @@
 # SWU Builder – zadání úprav filtrování a layoutu
 
 ## Přehled
-Cílem je rozšířit aplikaci o filtrování podle numerických statů a zároveň zachovat původní layout i vzhled aplikace.
+Cílem je rozšířit aplikaci o filtrování podle numerických statů a klíčového slova a zároveň zachovat původní layout i vzhled aplikace.
 
 ---
 
@@ -12,10 +12,11 @@ Aplikace má nově podporovat filtrování podle:
 - `Cost`
 - `Power`
 - `HP`
+- `Keyword`
 
-Tyto filtry fungují jako **číselný rozsah od–do**.
+### 1.1 Range filtry
+Filtry `Cost`, `Power` a `HP` fungují jako **číselný rozsah od–do**.
 
-### Chování range filtrů
 Pro každý z těchto statů platí:
 
 - uživatel může vyplnit dolní hranici
@@ -25,24 +26,71 @@ Pro každý z těchto statů platí:
 - karta projde jen tehdy, pokud její hodnota spadá do zadaného intervalu
 - karta bez dané hodnoty při aktivním filtru pro daný stat neprojde
 
+### 1.2 Keyword filtr
+Aplikace má obsahovat textové pole `Keyword`.
+
+Chování:
+
+- když je pole prázdné, filtr se neuplatní
+- když je v poli něco zadáno, vyfiltrují se pouze karty, které obsahují zadaný text
+- hledání je case-insensitive
+- hledá se v:
+    - názvu karty
+    - textu karty
+
+Za text karty se považují relevantní textová pole karty, například:
+
+- `text`
+- `deployBox`
+- `epicAction`
+
 ---
 
-## 2. Umístění stat filtrů
+## 2. Sekce Obecné
+
+Původní sekce `Zobrazení` má být přejmenována na:
+
+- `Obecné`
+
+Tato sekce má obsahovat:
+
+- textové pole `Keyword`
+- checkbox `Zobrazit duplicitní karty`
+- tlačítko `Původní nastavení`
+
+### 2.1 Původní nastavení
+Po kliknutí na tlačítko `Původní nastavení` se má provést reset filtrů do výchozího stavu:
+
+- `Types` → `Include` + vše vybráno
+- `Expansions` → `Include` + vše vybráno
+- `Rarities` → `Include` + vše vybráno
+- `Traits` → `Include` + vše vybráno
+- `Aspects` → `Include` + vše vybráno
+- `Cost` → obě pole prázdná
+- `Power` → obě pole prázdná
+- `HP` → obě pole prázdná
+- `Keyword` → prázdné
+- `Duplicity` → vypnuto
+- index aktuálně zobrazené karty → reset na začátek
+
+---
+
+## 3. Umístění stat filtrů
 
 `Cost`, `Power` a `HP` nemají být každý v samostatném boxu.
 
-Mají být sloučeny do jednoho společného boxu, například:
+Mají být sloučeny do jednoho společného boxu:
 
 - `Stats`
 
-### Vzhled boxu `Stats`
+### 3.1 Vzhled boxu `Stats`
 Uvnitř mají být jednotlivé staty zobrazeny po řádcích:
 
 - `Cost [input od] - [input do]`
 - `Power [input od] - [input do]`
 - `HP [input od] - [input do]`
 
-### Vizuální pravidla
+### 3.2 Vizuální pravidla
 - label statu je vlevo
 - první input je dolní hranice
 - mezi inputy je separator `-`
@@ -51,7 +99,7 @@ Uvnitř mají být jednotlivé staty zobrazeny po řádcích:
 
 ---
 
-## 3. Ostatní filtry
+## 4. Ostatní filtry
 
 Zůstávají stávající filtry podle:
 
@@ -61,19 +109,19 @@ Zůstávají stávající filtry podle:
 - `Traits`
 - `Aspects`
 
-### Include / Exclude
+### 4.1 Include / Exclude
 Každý z těchto filtrů má přepínač:
 
 - `Include`
 - `Exclude`
 
-### Vše / Nic
+### 4.2 Vše / Nic
 Každý z těchto filtrů má akce:
 
 - `Vše`
 - `Nic`
 
-### Rozložení horního řádku filtru
+### 4.3 Rozložení horního řádku filtru
 Bylo definováno, že:
 
 - `Include / Exclude` a `Vše / Nic` mají být na **stejném řádku**
@@ -84,7 +132,7 @@ Tedy typicky:
 - vlevo `Include / Exclude`
 - vpravo `Vše / Nic`
 
-### Multi-value filtry
+### 4.4 Multi-value filtry
 U filtrů jako `Traits` a `Aspects`, kde může být na kartě více hodnot, platí:
 
 #### Include
@@ -95,12 +143,9 @@ Karta projde jen tehdy, pokud neobsahuje **žádnou** z vybraných hodnot.
 
 ---
 
-## 4. Duplicity
+## 5. Duplicity
 
-Volba pro duplicity má být samostatně umístěna:
-
-- v horním samostatném boxu
-- nad ostatními filtry
+Volba pro duplicity má být samostatně umístěna v sekci `Obecné`.
 
 ### Obsah
 Checkbox:
@@ -109,11 +154,11 @@ Checkbox:
 
 ---
 
-## 5. Hlavní layout aplikace
+## 6. Hlavní layout aplikace
 
 Má být zachován původní layout aplikace.
 
-### 5.1 Horní panel
+### 6.1 Horní panel
 Nahoře je samostatná sekce obsahující:
 
 - tlačítko `Předchozí`
@@ -122,10 +167,10 @@ Nahoře je samostatná sekce obsahující:
 - posuvník
 - tlačítko `Rozbalit filtry` / `Skrýt filtry`
 
-### 5.2 Panel filtrů
+### 6.2 Panel filtrů
 Pod horním panelem je samostatná sekce s filtry, která se zobrazí po rozbalení.
 
-### 5.3 Hlavní obsah
+### 6.3 Hlavní obsah
 Pod filtrovacím panelem jsou dvě hlavní sekce vedle sebe:
 
 - vlevo obrázek karty
@@ -135,12 +180,12 @@ Na mobilu mají být tyto dvě sekce pod sebou.
 
 ---
 
-## 6. Layout filtrů
+## 7. Layout filtrů
 
 ### Desktop
 Požadované rozložení filtrů:
 
-- nahoře samostatný box `Duplicity`
+- nahoře samostatný box `Obecné`
 - pod tím grid ostatních filtrů
 - boxy se mají zobrazovat vedle sebe, pokud se vejdou
 - pokud se nevejdou, mají se zalomit do dalšího řádku
@@ -156,7 +201,7 @@ Box `Stats` je jeden z boxů v tomto gridu.
 
 ---
 
-## 7. Styl a UX
+## 8. Styl a UX
 
 ### Zachovat původní vzhled
 Požadavky:
@@ -172,45 +217,52 @@ Nemají působit jako volně rozhozené prvky bez struktury.
 
 ---
 
-## 8. Implementační logika
+## 9. Implementační logika
 
-### State v aplikaci
+### 9.1 State v aplikaci
 Je potřeba přidat nové state hodnoty pro:
 
 - `costRange`
 - `powerRange`
 - `hpRange`
+- `keyword`
 
 Každý range má mít tvar:
 
 - `min`
 - `max`
 
-### Filtrační logika
+### 9.2 Filtrační logika
 Při filtrování karet se má:
 
 - vzít číselná hodnota daného statu
 - aplikovat rozsah od–do
+- aplikovat keyword filtr
 - karta musí splnit všechny aktivní filtry zároveň
 
-### Reset indexu
+### 9.3 Reset indexu
 Po změně filtrů se má resetovat index zobrazené karty na začátek, a to i při změně:
 
 - `Cost`
 - `Power`
 - `HP`
+- `Keyword`
 
 ---
 
-## 9. Shrnutí výsledného UI
+## 10. Shrnutí výsledného UI
 
 ### Filtry
 Po rozbalení filtrů má být vidět:
 
-1. nahoře samostatný box `Duplicity`
-2. pod tím grid boxů
-3. v gridu mimo jiné box `Stats`
-4. v boxu `Stats` tyto řádky:
+1. nahoře samostatný box `Obecné`
+2. v něm:
+    - `Keyword`
+    - `Zobrazit duplicitní karty`
+    - `Původní nastavení`
+3. pod tím grid boxů
+4. v gridu mimo jiné box `Stats`
+5. v boxu `Stats` tyto řádky:
 
 - `Cost [od] - [do]`
 - `Power [od] - [do]`
@@ -234,10 +286,10 @@ Mimo filtry zůstává:
 
 ---
 
-## 10. Praktický cíl
+## 11. Praktický cíl
 Výsledkem má být přehlednější filtrování, které:
 
-- rozšiřuje možnosti o numerické staty
+- rozšiřuje možnosti o numerické staty a keyword
 - zachovává původní rozložení aplikace
 - drží konzistentní vzhled
 - funguje dobře na desktopu i mobilu
