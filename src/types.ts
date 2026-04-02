@@ -78,3 +78,26 @@ export type TypeFilterState = {
     mode: FilterMode
     selectedTypes: string[]
 }
+
+export type SortField =
+    | 'title'
+    | 'cost'
+    | 'power'
+    | 'hp'
+    | 'type'
+    | 'expansion'
+    | 'rarity'
+    | 'arena'
+
+export type SortDirection = 'asc' | 'desc'
+
+export type SortRule = {
+    id: string
+    field: SortField
+    direction: SortDirection
+}
+
+export type RangeValue = {
+    min: string
+    max: string
+}

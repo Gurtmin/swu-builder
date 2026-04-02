@@ -1,12 +1,32 @@
 import { useEffect, useMemo, useState } from 'react'
 import FilterPanel from './FilterPanel'
-import type { FilterMode, SwuCard } from './types'
+import type {
+    FilterMode,
+    RangeValue,
+    SortDirection,
+    SortField,
+    SortRule,
+    SwuCard,
+} from './types'
 
 const DATA_URL = import.meta.env.VITE_CARDS_URL || '/cards.json'
 
-type RangeValue = {
-    min: string
-    max: string
+const PREMIER_LEGAL_EXPANSIONS = [
+    'Jump to Lightspeed',
+    'Legends of the Force',
+    'Secrets of Power',
+    'A Lawless Time',
+]
+
+function createSortRule(
+    field: SortField = 'title',
+    direction: SortDirection = 'asc',
+): SortRule {
+    return {
+        id: crypto.randomUUID(),
+        field,
+        direction,
+    }
 }
 
 function getCardName(card: SwuCard): string {
@@ -34,24 +54,6 @@ function getDeduplicationKey(card: SwuCard): string {
     const subtitle = (card.attributes.subtitle || '').trim().toLowerCase()
 
     return `${title}|||${subtitle}`
-}
-
-function compareCardsForDisplay(a: SwuCard, b: SwuCard): number {
-    const keyA = getDeduplicationKey(a)
-    const keyB = getDeduplicationKey(b)
-
-    if (keyA !== keyB) {
-        return keyA.localeCompare(keyB)
-    }
-
-    const expansionA = getExpansion(a)
-    const expansionB = getExpansion(b)
-
-    if (expansionA !== expansionB) {
-        return expansionA.localeCompare(expansionB)
-    }
-
-    return a.id - b.id
 }
 
 function getType(card: SwuCard): string {
@@ -103,6 +105,83 @@ function getRulesText(card: SwuCard): string | null {
     return card.attributes.text || card.attributes.deployBox || card.attributes.epicAction || null
 }
 
+function compareCardsForDisplay(a: SwuCard, b: SwuCard): number {
+    const keyA = getDeduplicationKey(a)
+    const keyB = getDeduplicationKey(b)
+
+    if (keyA !== keyB) {
+        return keyA.localeCompare(keyB)
+    }
+
+    const expansionA = getExpansion(a)
+    const expansionB = getExpansion(b)
+
+    if (expansionA !== expansionB) {
+        return expansionA.localeCompare(expansionB)
+    }
+
+    return a.id - b.id
+}
+
+function compareStrings(a: string, b: string): number {
+    return a.localeCompare(b, undefined, { sensitivity: 'base' })
+}
+
+function getNumericValue(value: number | null | undefined): number | null {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function compareNullableNumbers(a: number | null, b: number | null): number {
+    if (a === null && b === null) return 0
+    if (a === null) return 1
+    if (b === null) return -1
+    return a - b
+}
+
+function compareCardsBySortField(a: SwuCard, b: SwuCard, field: SortField): number {
+    switch (field) {
+        case 'title':
+            return compareStrings(getCardName(a), getCardName(b))
+        case 'cost':
+            return compareNullableNumbers(
+                getNumericValue(a.attributes.cost),
+                getNumericValue(b.attributes.cost),
+            )
+        case 'power':
+            return compareNullableNumbers(
+                getNumericValue(a.attributes.power),
+                getNumericValue(b.attributes.power),
+            )
+        case 'hp':
+            return compareNullableNumbers(
+                getNumericValue(a.attributes.hp),
+                getNumericValue(b.attributes.hp),
+            )
+        case 'type':
+            return compareStrings(getType(a), getType(b))
+        case 'expansion':
+            return compareStrings(getExpansion(a), getExpansion(b))
+        case 'rarity':
+            return compareStrings(getRarity(a), getRarity(b))
+        case 'arena':
+            return compareStrings(getArenas(a), getArenas(b))
+        default:
+            return 0
+    }
+}
+
+function compareByRules(a: SwuCard, b: SwuCard, rules: SortRule[]): number {
+    for (const rule of rules) {
+        const result = compareCardsBySortField(a, b, rule.field)
+
+        if (result !== 0) {
+            return rule.direction === 'asc' ? result : -result
+        }
+    }
+
+    return compareCardsForDisplay(a, b)
+}
+
 function matchesFilter(value: string, mode: FilterMode, selected: Set<string>): boolean {
     if (selected.size === 0) {
         return mode === 'include' ? false : true
@@ -141,10 +220,6 @@ function matchesMultiValueFilter(
     }
 
     return values.every((value) => !selected.has(value))
-}
-
-function getNumericValue(value: number | null | undefined): number | null {
-    return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
 function matchesRange(value: number | null, range: RangeValue): boolean {
@@ -213,9 +288,14 @@ export default function App() {
     const [aspectFilterMode, setAspectFilterMode] = useState<FilterMode>('include')
     const [selectedAspects, setSelectedAspects] = useState<string[]>([])
 
+    const [arenaFilterMode, setArenaFilterMode] = useState<FilterMode>('include')
+    const [selectedArenas, setSelectedArenas] = useState<string[]>([])
+
     const [costRange, setCostRange] = useState<RangeValue>({ min: '', max: '' })
     const [powerRange, setPowerRange] = useState<RangeValue>({ min: '', max: '' })
     const [hpRange, setHpRange] = useState<RangeValue>({ min: '', max: '' })
+
+    const [sortRules, setSortRules] = useState<SortRule[]>([createSortRule('title', 'asc')])
 
     const [showDuplicates, setShowDuplicates] = useState(false)
 
@@ -283,7 +363,9 @@ export default function App() {
     }, [baseCards])
 
     const availableExpansions = useMemo(() => {
-        return [...new Set(baseCards.map(getExpansion).filter((value) => value && value !== '—'))].sort()
+        return [
+            ...new Set(baseCards.map(getExpansion).filter((value) => value && value !== '—')),
+        ].sort()
     }, [baseCards])
 
     const availableRarities = useMemo(() => {
@@ -314,6 +396,18 @@ export default function App() {
         ].sort()
     }, [baseCards])
 
+    const availableArenas = useMemo(() => {
+        return [
+            ...new Set(
+                baseCards.flatMap((card) =>
+                    (card.attributes.arenas?.data || [])
+                        .map((item) => item.attributes?.name || item.attributes?.title)
+                        .filter(isNonEmptyString),
+                ),
+            ),
+        ].sort()
+    }, [baseCards])
+
     useEffect(() => {
         setSelectedTypes((prev) => (prev.length > 0 ? prev : availableTypes))
     }, [availableTypes])
@@ -334,6 +428,10 @@ export default function App() {
         setSelectedAspects((prev) => (prev.length > 0 ? prev : availableAspects))
     }, [availableAspects])
 
+    useEffect(() => {
+        setSelectedArenas((prev) => (prev.length > 0 ? prev : availableArenas))
+    }, [availableArenas])
+
     const filteredCards = useMemo(() => {
         if (baseCards.length === 0) return []
 
@@ -342,13 +440,15 @@ export default function App() {
         const selectedRaritySet = new Set(selectedRarities)
         const selectedTraitSet = new Set(selectedTraits)
         const selectedAspectSet = new Set(selectedAspects)
+        const selectedArenaSet = new Set(selectedArenas)
 
-        return baseCards.filter((card) => {
+        const filtered = baseCards.filter((card) => {
             const type = getType(card)
             const expansion = getExpansion(card)
             const rarity = getRarity(card)
             const traits = getRelationNames(card.attributes.traits?.data)
             const aspects = getRelationNames(card.attributes.aspects?.data)
+            const arenas = getRelationNames(card.attributes.arenas?.data)
 
             const cost = getNumericValue(card.attributes.cost)
             const power = getNumericValue(card.attributes.power)
@@ -360,12 +460,15 @@ export default function App() {
                 matchesFilter(rarity, rarityFilterMode, selectedRaritySet) &&
                 matchesMultiValueFilter(traits, traitFilterMode, selectedTraitSet) &&
                 matchesMultiValueFilter(aspects, aspectFilterMode, selectedAspectSet) &&
+                matchesMultiValueFilter(arenas, arenaFilterMode, selectedArenaSet) &&
                 matchesRange(cost, costRange) &&
                 matchesRange(power, powerRange) &&
                 matchesRange(hp, hpRange) &&
                 matchesKeyword(card, keyword)
             )
         })
+
+        return [...filtered].sort((a, b) => compareByRules(a, b, sortRules))
     }, [
         baseCards,
         selectedTypes,
@@ -378,10 +481,13 @@ export default function App() {
         traitFilterMode,
         selectedAspects,
         aspectFilterMode,
+        selectedArenas,
+        arenaFilterMode,
         costRange,
         powerRange,
         hpRange,
         keyword,
+        sortRules,
     ])
 
     useEffect(() => {
@@ -398,10 +504,13 @@ export default function App() {
         traitFilterMode,
         selectedAspects,
         aspectFilterMode,
+        selectedArenas,
+        arenaFilterMode,
         costRange,
         powerRange,
         hpRange,
         keyword,
+        sortRules,
     ])
 
     useEffect(() => {
@@ -477,6 +586,12 @@ export default function App() {
         )
     }
 
+    function toggleArena(value: string) {
+        setSelectedArenas((prev) =>
+            prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value],
+        )
+    }
+
     function updateCostRange(part: 'min' | 'max', value: string) {
         setCostRange((prev) => ({ ...prev, [part]: value }))
     }
@@ -505,6 +620,13 @@ export default function App() {
         setSelectedExpansions([])
     }
 
+    function selectPremierLegalExpansions() {
+        setExpansionFilterMode('include')
+        setSelectedExpansions(
+            availableExpansions.filter((expansion) => PREMIER_LEGAL_EXPANSIONS.includes(expansion)),
+        )
+    }
+
     function selectAllRarities() {
         setSelectedRarities(availableRarities)
     }
@@ -529,6 +651,58 @@ export default function App() {
         setSelectedAspects([])
     }
 
+    function selectAllArenas() {
+        setSelectedArenas(availableArenas)
+    }
+
+    function clearAllArenas() {
+        setSelectedArenas([])
+    }
+
+    function addSortRule() {
+        setSortRules((prev) => [...prev, createSortRule('title', 'asc')])
+    }
+
+    function updateSortRuleField(id: string, field: SortField) {
+        setSortRules((prev) => prev.map((rule) => (rule.id === id ? { ...rule, field } : rule)))
+    }
+
+    function updateSortRuleDirection(id: string, direction: SortDirection) {
+        setSortRules((prev) => prev.map((rule) => (rule.id === id ? { ...rule, direction } : rule)))
+    }
+
+    function moveSortRuleUp(id: string) {
+        setSortRules((prev) => {
+            const index = prev.findIndex((rule) => rule.id === id)
+            if (index <= 0) return prev
+
+            const next = [...prev]
+            ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
+            return next
+        })
+    }
+
+    function moveSortRuleDown(id: string) {
+        setSortRules((prev) => {
+            const index = prev.findIndex((rule) => rule.id === id)
+            if (index < 0 || index >= prev.length - 1) return prev
+
+            const next = [...prev]
+            ;[next[index], next[index + 1]] = [next[index + 1], next[index]]
+            return next
+        })
+    }
+
+    function removeSortRule(id: string) {
+        setSortRules((prev) => {
+            if (prev.length <= 1) {
+                return [createSortRule('title', 'asc')]
+            }
+
+            return prev.filter((rule) => rule.id !== id)
+        })
+    }
+
     function resetToDefaultFilters() {
         setShowDuplicates(false)
 
@@ -537,19 +711,22 @@ export default function App() {
         setRarityFilterMode('include')
         setTraitFilterMode('include')
         setAspectFilterMode('include')
+        setArenaFilterMode('include')
 
         setSelectedTypes(availableTypes)
         setSelectedExpansions(availableExpansions)
         setSelectedRarities(availableRarities)
         setSelectedTraits(availableTraits)
         setSelectedAspects(availableAspects)
+        setSelectedArenas(availableArenas)
 
         setCostRange({ min: '', max: '' })
         setPowerRange({ min: '', max: '' })
         setHpRange({ min: '', max: '' })
 
-        setIndex(0)
         setKeyword('')
+        setSortRules([createSortRule('title', 'asc')])
+        setIndex(0)
     }
 
     if (loading) {
@@ -610,11 +787,11 @@ export default function App() {
             {filtersOpen ? (
                 <section className="filter-panel">
                     <FilterPanel
-                        keyword={keyword}
-                        onKeywordChange={setKeyword}
                         showDuplicates={showDuplicates}
                         onShowDuplicatesChange={setShowDuplicates}
                         onResetToDefaults={resetToDefaultFilters}
+                        keyword={keyword}
+                        onKeywordChange={setKeyword}
                         types={availableTypes}
                         typeMode={typeFilterMode}
                         selectedTypes={selectedTypes}
@@ -643,6 +820,13 @@ export default function App() {
                         onToggleAspect={toggleAspect}
                         onSelectAllAspects={selectAllAspects}
                         onClearAllAspects={clearAllAspects}
+                        arenas={availableArenas}
+                        arenaMode={arenaFilterMode}
+                        selectedArenas={selectedArenas}
+                        onArenaModeChange={setArenaFilterMode}
+                        onToggleArena={toggleArena}
+                        onSelectAllArenas={selectAllArenas}
+                        onClearAllArenas={clearAllArenas}
                         expansions={availableExpansions}
                         expansionMode={expansionFilterMode}
                         selectedExpansions={selectedExpansions}
@@ -650,6 +834,7 @@ export default function App() {
                         onToggleExpansion={toggleExpansion}
                         onSelectAllExpansions={selectAllExpansions}
                         onClearAllExpansions={clearAllExpansions}
+                        onSelectPremierExpansions={selectPremierLegalExpansions}
                         costRange={costRange}
                         onCostMinChange={(value) => updateCostRange('min', value)}
                         onCostMaxChange={(value) => updateCostRange('max', value)}
@@ -659,6 +844,13 @@ export default function App() {
                         hpRange={hpRange}
                         onHpMinChange={(value) => updateHpRange('min', value)}
                         onHpMaxChange={(value) => updateHpRange('max', value)}
+                        sortRules={sortRules}
+                        onAddSortRule={addSortRule}
+                        onUpdateSortRuleField={updateSortRuleField}
+                        onUpdateSortRuleDirection={updateSortRuleDirection}
+                        onMoveSortRuleUp={moveSortRuleUp}
+                        onMoveSortRuleDown={moveSortRuleDown}
+                        onRemoveSortRule={removeSortRule}
                     />
                 </section>
             ) : null}

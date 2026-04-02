@@ -15,7 +15,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
     font: inherit;
 }
 
@@ -61,7 +62,8 @@ input {
 .filter-actions button,
 .segmented,
 .filter-mode-buttons button,
-.filter-group-actions button {
+.filter-group-actions button,
+.sort-rule-actions button {
     border: 0;
     border-radius: 12px;
     padding: 10px 16px;
@@ -83,7 +85,8 @@ input {
 .filter-actions button:hover,
 .segmented:hover,
 .filter-mode-buttons button:hover,
-.filter-group-actions button:hover {
+.filter-group-actions button:hover,
+.sort-rule-actions button:hover {
     transform: translateY(-1px);
 }
 
@@ -125,7 +128,7 @@ input {
 
 .filter-grid-wide {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
     gap: 20px;
 }
 
@@ -272,6 +275,65 @@ input {
     margin-top: 14px;
 }
 
+.checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px;
+}
+
+.checkbox-chip {
+    min-height: 40px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(30, 41, 59, 0.72);
+}
+
+.checkbox-chip-large {
+    min-height: 46px;
+}
+
+.checkbox-chip input,
+.checkbox-option input,
+.radio-option input,
+.filter-item input {
+    margin: 0;
+}
+
+.general-controls {
+    display: grid;
+    gap: 14px;
+}
+
+.general-keyword-field {
+    display: grid;
+    gap: 6px;
+}
+
+.general-keyword-field span,
+.sort-field span,
+.sort-direction span {
+    font-size: 14px;
+    color: #cbd5e1;
+    font-weight: 600;
+}
+
+.general-keyword-field input,
+.sort-field select {
+    width: 100%;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.9);
+    color: #f8fafc;
+    padding: 10px 12px;
+    outline: none;
+}
+
+.general-keyword-field input:focus,
+.sort-field select:focus {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
 .general-filter-actions {
     display: flex;
     justify-content: space-between;
@@ -297,28 +359,52 @@ input {
     transform: translateY(-1px);
 }
 
-.checkbox-grid {
+/* SORTING */
+
+.sort-rules-list {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-    gap: 10px;
+    gap: 12px;
 }
 
-.checkbox-chip {
-    min-height: 40px;
-    padding: 8px 10px;
-    border-radius: 10px;
-    background: rgba(30, 41, 59, 0.72);
+.sort-rule-row {
+    display: grid;
+    grid-template-columns: auto minmax(180px, 1fr) auto auto;
+    gap: 12px;
+    align-items: end;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.45);
+    border: 1px solid rgba(148, 163, 184, 0.12);
 }
 
-.checkbox-chip-large {
-    min-height: 46px;
+.sort-rule-priority {
+    font-weight: 700;
+    color: #93c5fd;
+    align-self: center;
 }
 
-.checkbox-chip input,
-.checkbox-option input,
-.radio-option input,
-.filter-item input {
-    margin: 0;
+.sort-field,
+.sort-direction {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.sort-rule-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.sort-rule-actions button {
+    background: #334155;
+    padding: 8px 12px;
+}
+
+.sort-add-row {
+    margin-top: 14px;
+    display: flex;
+    justify-content: flex-start;
 }
 
 /* STATS RANGE */
@@ -484,62 +570,6 @@ input {
     color: #fecaca;
 }
 
-.general-controls {
-    display: grid;
-    gap: 14px;
-}
-
-.general-keyword-field {
-    display: grid;
-    gap: 6px;
-}
-
-.general-keyword-field span {
-    font-size: 14px;
-    color: #cbd5e1;
-    font-weight: 600;
-}
-
-.general-keyword-field input {
-    width: 100%;
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    border-radius: 12px;
-    background: rgba(15, 23, 42, 0.9);
-    color: #f8fafc;
-    padding: 10px 12px;
-    outline: none;
-}
-
-.general-keyword-field input:focus {
-    border-color: #60a5fa;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
-}
-
-.general-filter-actions {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.general-reset-button {
-    border: 0;
-    border-radius: 12px;
-    padding: 10px 16px;
-    color: white;
-    cursor: pointer;
-    background: #334155;
-    transition:
-            background-color 0.15s ease,
-            opacity 0.15s ease,
-            transform 0.15s ease;
-}
-
-.general-reset-button:hover {
-    transform: translateY(-1px);
-}
-
 /* RESPONSIVE */
 
 @media (max-width: 1000px) {
@@ -577,6 +607,10 @@ input {
     }
 
     .info-row {
+        grid-template-columns: 1fr;
+    }
+
+    .sort-rule-row {
         grid-template-columns: 1fr;
     }
 }

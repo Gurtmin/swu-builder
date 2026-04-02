@@ -1,10 +1,11 @@
 import { memo } from 'react'
-import type { FilterMode } from './types'
-
-type RangeValue = {
-    min: string
-    max: string
-}
+import type {
+    FilterMode,
+    RangeValue,
+    SortDirection,
+    SortField,
+    SortRule,
+} from './types'
 
 type FilterGroupProps = {
     title: string
@@ -15,25 +16,37 @@ type FilterGroupProps = {
     onToggleItem: (value: string) => void
     onSelectAll: () => void
     onClearAll: () => void
+    extraActions?: React.ReactNode
 }
 
 type StatsRangeFiltersProps = {
     costRange: RangeValue
     onCostMinChange: (value: string) => void
     onCostMaxChange: (value: string) => void
-
     powerRange: RangeValue
     onPowerMinChange: (value: string) => void
     onPowerMaxChange: (value: string) => void
-
     hpRange: RangeValue
     onHpMinChange: (value: string) => void
     onHpMaxChange: (value: string) => void
 }
 
+type SortTileProps = {
+    sortRules: SortRule[]
+    onAddSortRule: () => void
+    onUpdateSortRuleField: (id: string, field: SortField) => void
+    onUpdateSortRuleDirection: (id: string, direction: SortDirection) => void
+    onMoveSortRuleUp: (id: string) => void
+    onMoveSortRuleDown: (id: string) => void
+    onRemoveSortRule: (id: string) => void
+}
+
 type FilterPanelProps = {
     showDuplicates: boolean
     onShowDuplicatesChange: (value: boolean) => void
+    onResetToDefaults: () => void
+    keyword: string
+    onKeywordChange: (value: string) => void
 
     types: string[]
     typeMode: FilterMode
@@ -67,6 +80,14 @@ type FilterPanelProps = {
     onSelectAllAspects: () => void
     onClearAllAspects: () => void
 
+    arenas: string[]
+    arenaMode: FilterMode
+    selectedArenas: string[]
+    onArenaModeChange: (mode: FilterMode) => void
+    onToggleArena: (value: string) => void
+    onSelectAllArenas: () => void
+    onClearAllArenas: () => void
+
     expansions: string[]
     expansionMode: FilterMode
     selectedExpansions: string[]
@@ -74,6 +95,7 @@ type FilterPanelProps = {
     onToggleExpansion: (value: string) => void
     onSelectAllExpansions: () => void
     onClearAllExpansions: () => void
+    onSelectPremierExpansions: () => void
 
     costRange: RangeValue
     onCostMinChange: (value: string) => void
@@ -86,10 +108,14 @@ type FilterPanelProps = {
     hpRange: RangeValue
     onHpMinChange: (value: string) => void
     onHpMaxChange: (value: string) => void
-    onResetToDefaults: () => void
 
-    keyword: string
-    onKeywordChange: (value: string) => void
+    sortRules: SortRule[]
+    onAddSortRule: () => void
+    onUpdateSortRuleField: (id: string, field: SortField) => void
+    onUpdateSortRuleDirection: (id: string, direction: SortDirection) => void
+    onMoveSortRuleUp: (id: string) => void
+    onMoveSortRuleDown: (id: string) => void
+    onRemoveSortRule: (id: string) => void
 }
 
 function FilterGroup({
@@ -101,6 +127,7 @@ function FilterGroup({
                          onToggleItem,
                          onSelectAll,
                          onClearAll,
+                         extraActions,
                      }: FilterGroupProps) {
     const selectedSet = new Set(selectedItems)
 
@@ -132,6 +159,7 @@ function FilterGroup({
                 </div>
 
                 <div className="filter-actions">
+                    {extraActions}
                     <button type="button" onClick={onSelectAll}>
                         Vše
                     </button>
@@ -244,6 +272,87 @@ function StatsRangeFilters({
     )
 }
 
+function SortTile({
+                      sortRules,
+                      onAddSortRule,
+                      onUpdateSortRuleField,
+                      onUpdateSortRuleDirection,
+                      onMoveSortRuleUp,
+                      onMoveSortRuleDown,
+                      onRemoveSortRule,
+                  }: SortTileProps) {
+    return (
+        <section className="filter-section">
+            <div className="filter-tile-header">
+                <h3>Řazení</h3>
+            </div>
+
+            <div className="sort-rules-list">
+                {sortRules.map((rule, index) => (
+                    <div key={rule.id} className="sort-rule-row">
+                        <div className="sort-rule-priority">{index + 1}.</div>
+
+                        <label className="sort-field">
+                            <span>Podle</span>
+                            <select
+                                value={rule.field}
+                                onChange={(e) => onUpdateSortRuleField(rule.id, e.target.value as SortField)}
+                            >
+                                <option value="title">Název</option>
+                                <option value="cost">Cost</option>
+                                <option value="power">Power</option>
+                                <option value="hp">HP</option>
+                                <option value="type">Typ</option>
+                                <option value="expansion">Edice</option>
+                                <option value="rarity">Rarita</option>
+                                <option value="arena">Arena</option>
+                            </select>
+                        </label>
+
+                        <div className="sort-direction">
+                            <span>Směr</span>
+                            <div className="filter-segmented">
+                                <button
+                                    type="button"
+                                    className={`segmented ${rule.direction === 'asc' ? 'active' : ''}`}
+                                    onClick={() => onUpdateSortRuleDirection(rule.id, 'asc')}
+                                >
+                                    ↑
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`segmented ${rule.direction === 'desc' ? 'active' : ''}`}
+                                    onClick={() => onUpdateSortRuleDirection(rule.id, 'desc')}
+                                >
+                                    ↓
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="sort-rule-actions">
+                            <button type="button" onClick={() => onMoveSortRuleUp(rule.id)} title="Nahoru">
+                                ↑
+                            </button>
+                            <button type="button" onClick={() => onMoveSortRuleDown(rule.id)} title="Dolů">
+                                ↓
+                            </button>
+                            <button type="button" onClick={() => onRemoveSortRule(rule.id)} title="Smazat">
+                                ✕
+                            </button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="sort-add-row">
+                <button type="button" className="general-reset-button" onClick={onAddSortRule}>
+                    Přidat úroveň řazení
+                </button>
+            </div>
+        </section>
+    )
+}
+
 function FilterPanelComponent(props: FilterPanelProps) {
     return (
         <div className="better-filter-panel">
@@ -302,6 +411,31 @@ function FilterPanelComponent(props: FilterPanelProps) {
                 </div>
 
                 <div className="filter-tile">
+                    <SortTile
+                        sortRules={props.sortRules}
+                        onAddSortRule={props.onAddSortRule}
+                        onUpdateSortRuleField={props.onUpdateSortRuleField}
+                        onUpdateSortRuleDirection={props.onUpdateSortRuleDirection}
+                        onMoveSortRuleUp={props.onMoveSortRuleUp}
+                        onMoveSortRuleDown={props.onMoveSortRuleDown}
+                        onRemoveSortRule={props.onRemoveSortRule}
+                    />
+                </div>
+
+                <div className="filter-tile">
+                    <FilterGroup
+                        title="Arena"
+                        items={props.arenas}
+                        mode={props.arenaMode}
+                        selectedItems={props.selectedArenas}
+                        onModeChange={props.onArenaModeChange}
+                        onToggleItem={props.onToggleArena}
+                        onSelectAll={props.onSelectAllArenas}
+                        onClearAll={props.onClearAllArenas}
+                    />
+                </div>
+
+                <div className="filter-tile">
                     <FilterGroup
                         title="Types"
                         items={props.types}
@@ -324,6 +458,11 @@ function FilterPanelComponent(props: FilterPanelProps) {
                         onToggleItem={props.onToggleExpansion}
                         onSelectAll={props.onSelectAllExpansions}
                         onClearAll={props.onClearAllExpansions}
+                        extraActions={
+                            <button type="button" onClick={props.onSelectPremierExpansions}>
+                                Premier
+                            </button>
+                        }
                     />
                 </div>
 
