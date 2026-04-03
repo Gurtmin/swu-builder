@@ -1,32 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import FilterPanel from './FilterPanel'
-import type {
-    FilterMode,
-    RangeValue,
-    SortDirection,
-    SortField,
-    SortRule,
-    SwuCard,
-} from './types'
+import type { FilterMode, SwuCard } from './types'
 
 const DATA_URL = import.meta.env.VITE_CARDS_URL || '/cards.json'
+const MAX_COPIES_PER_CARD = 3
+const API_BASE_URL =
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_STRAPI_URL ||
+    ''
 
-const PREMIER_LEGAL_EXPANSIONS = [
-    'Jump to Lightspeed',
-    'Legends of the Force',
-    'Secrets of Power',
-    'A Lawless Time',
-]
-
-function createSortRule(
-    field: SortField = 'title',
-    direction: SortDirection = 'asc',
-): SortRule {
-    return {
-        id: crypto.randomUUID(),
-        field,
-        direction,
-    }
+type DeckEntry = {
+    key: string
+    count: number
+    card: SwuCard
 }
 
 function getCardName(card: SwuCard): string {
@@ -37,14 +23,25 @@ function getSubtitle(card: SwuCard): string | null {
     return card.attributes.subtitle || null
 }
 
+function toAbsoluteMediaUrl(url?: string | null): string | null {
+    if (!url) return null
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url
+    }
+    if (!API_BASE_URL) {
+        return url
+    }
+    return new URL(url, API_BASE_URL).toString()
+}
+
 function getImageUrl(card: SwuCard): string | null {
     const media = card.attributes.artFront?.data?.attributes
 
     return (
-        media?.formats?.card?.url ||
-        media?.formats?.medium?.url ||
-        media?.formats?.small?.url ||
-        media?.url ||
+        toAbsoluteMediaUrl(media?.formats?.card?.url) ||
+        toAbsoluteMediaUrl(media?.formats?.medium?.url) ||
+        toAbsoluteMediaUrl(media?.formats?.small?.url) ||
+        toAbsoluteMediaUrl(media?.url) ||
         null
     )
 }
@@ -54,6 +51,24 @@ function getDeduplicationKey(card: SwuCard): string {
     const subtitle = (card.attributes.subtitle || '').trim().toLowerCase()
 
     return `${title}|||${subtitle}`
+}
+
+function compareCardsForDisplay(a: SwuCard, b: SwuCard): number {
+    const keyA = getDeduplicationKey(a)
+    const keyB = getDeduplicationKey(b)
+
+    if (keyA !== keyB) {
+        return keyA.localeCompare(keyB)
+    }
+
+    const expansionA = getExpansion(a)
+    const expansionB = getExpansion(b)
+
+    if (expansionA !== expansionB) {
+        return expansionA.localeCompare(expansionB)
+    }
+
+    return a.id - b.id
 }
 
 function getType(card: SwuCard): string {
@@ -105,88 +120,7 @@ function getRulesText(card: SwuCard): string | null {
     return card.attributes.text || card.attributes.deployBox || card.attributes.epicAction || null
 }
 
-function compareCardsForDisplay(a: SwuCard, b: SwuCard): number {
-    const keyA = getDeduplicationKey(a)
-    const keyB = getDeduplicationKey(b)
-
-    if (keyA !== keyB) {
-        return keyA.localeCompare(keyB)
-    }
-
-    const expansionA = getExpansion(a)
-    const expansionB = getExpansion(b)
-
-    if (expansionA !== expansionB) {
-        return expansionA.localeCompare(expansionB)
-    }
-
-    return a.id - b.id
-}
-
-function compareStrings(a: string, b: string): number {
-    return a.localeCompare(b, undefined, { sensitivity: 'base' })
-}
-
-function getNumericValue(value: number | null | undefined): number | null {
-    return typeof value === 'number' && Number.isFinite(value) ? value : null
-}
-
-function compareNullableNumbers(a: number | null, b: number | null): number {
-    if (a === null && b === null) return 0
-    if (a === null) return 1
-    if (b === null) return -1
-    return a - b
-}
-
-function compareCardsBySortField(a: SwuCard, b: SwuCard, field: SortField): number {
-    switch (field) {
-        case 'title':
-            return compareStrings(getCardName(a), getCardName(b))
-        case 'cost':
-            return compareNullableNumbers(
-                getNumericValue(a.attributes.cost),
-                getNumericValue(b.attributes.cost),
-            )
-        case 'power':
-            return compareNullableNumbers(
-                getNumericValue(a.attributes.power),
-                getNumericValue(b.attributes.power),
-            )
-        case 'hp':
-            return compareNullableNumbers(
-                getNumericValue(a.attributes.hp),
-                getNumericValue(b.attributes.hp),
-            )
-        case 'type':
-            return compareStrings(getType(a), getType(b))
-        case 'expansion':
-            return compareStrings(getExpansion(a), getExpansion(b))
-        case 'rarity':
-            return compareStrings(getRarity(a), getRarity(b))
-        case 'arena':
-            return compareStrings(getArenas(a), getArenas(b))
-        default:
-            return 0
-    }
-}
-
-function compareByRules(a: SwuCard, b: SwuCard, rules: SortRule[]): number {
-    for (const rule of rules) {
-        const result = compareCardsBySortField(a, b, rule.field)
-
-        if (result !== 0) {
-            return rule.direction === 'asc' ? result : -result
-        }
-    }
-
-    return compareCardsForDisplay(a, b)
-}
-
 function matchesFilter(value: string, mode: FilterMode, selected: Set<string>): boolean {
-    if (selected.size === 0) {
-        return mode === 'include' ? false : true
-    }
-
     if (mode === 'include') {
         return selected.has(value)
     }
@@ -222,49 +156,7 @@ function matchesMultiValueFilter(
     return values.every((value) => !selected.has(value))
 }
 
-function matchesRange(value: number | null, range: RangeValue): boolean {
-    const min = range.min.trim()
-    const max = range.max.trim()
-
-    if (min === '' && max === '') {
-        return true
-    }
-
-    if (value === null) {
-        return false
-    }
-
-    if (min !== '' && value < Number(min)) {
-        return false
-    }
-
-    if (max !== '' && value > Number(max)) {
-        return false
-    }
-
-    return true
-}
-
-function matchesKeyword(card: SwuCard, keyword: string): boolean {
-    const normalizedKeyword = keyword.trim().toLowerCase()
-
-    if (!normalizedKeyword) {
-        return true
-    }
-
-    const title = (card.attributes.title || '').toLowerCase()
-    const text = (
-        card.attributes.text ||
-        card.attributes.deployBox ||
-        card.attributes.epicAction ||
-        ''
-    ).toLowerCase()
-
-    return title.includes(normalizedKeyword) || text.includes(normalizedKeyword)
-}
-
 export default function App() {
-    const [keyword, setKeyword] = useState('')
     const [imageLoading, setImageLoading] = useState(true)
     const [imageError, setImageError] = useState(false)
     const [cards, setCards] = useState<SwuCard[]>([])
@@ -288,16 +180,8 @@ export default function App() {
     const [aspectFilterMode, setAspectFilterMode] = useState<FilterMode>('include')
     const [selectedAspects, setSelectedAspects] = useState<string[]>([])
 
-    const [arenaFilterMode, setArenaFilterMode] = useState<FilterMode>('include')
-    const [selectedArenas, setSelectedArenas] = useState<string[]>([])
-
-    const [costRange, setCostRange] = useState<RangeValue>({ min: '', max: '' })
-    const [powerRange, setPowerRange] = useState<RangeValue>({ min: '', max: '' })
-    const [hpRange, setHpRange] = useState<RangeValue>({ min: '', max: '' })
-
-    const [sortRules, setSortRules] = useState<SortRule[]>([createSortRule('title', 'asc')])
-
     const [showDuplicates, setShowDuplicates] = useState(false)
+    const [deckEntries, setDeckEntries] = useState<DeckEntry[]>([])
 
     useEffect(() => {
         let cancelled = false
@@ -363,9 +247,7 @@ export default function App() {
     }, [baseCards])
 
     const availableExpansions = useMemo(() => {
-        return [
-            ...new Set(baseCards.map(getExpansion).filter((value) => value && value !== '—')),
-        ].sort()
+        return [...new Set(baseCards.map(getExpansion).filter((value) => value && value !== '—'))].sort()
     }, [baseCards])
 
     const availableRarities = useMemo(() => {
@@ -396,41 +278,50 @@ export default function App() {
         ].sort()
     }, [baseCards])
 
-    const availableArenas = useMemo(() => {
-        return [
-            ...new Set(
-                baseCards.flatMap((card) =>
-                    (card.attributes.arenas?.data || [])
-                        .map((item) => item.attributes?.name || item.attributes?.title)
-                        .filter(isNonEmptyString),
-                ),
-            ),
-        ].sort()
-    }, [baseCards])
-
     useEffect(() => {
-        setSelectedTypes((prev) => (prev.length > 0 ? prev : availableTypes))
+        if (availableTypes.length === 0) return
+
+        setSelectedTypes((prev) => {
+            if (prev.length > 0) return prev
+            return availableTypes
+        })
     }, [availableTypes])
 
     useEffect(() => {
-        setSelectedExpansions((prev) => (prev.length > 0 ? prev : availableExpansions))
+        if (availableExpansions.length === 0) return
+
+        setSelectedExpansions((prev) => {
+            if (prev.length > 0) return prev
+            return availableExpansions
+        })
     }, [availableExpansions])
 
     useEffect(() => {
-        setSelectedRarities((prev) => (prev.length > 0 ? prev : availableRarities))
+        if (availableRarities.length === 0) return
+
+        setSelectedRarities((prev) => {
+            if (prev.length > 0) return prev
+            return availableRarities
+        })
     }, [availableRarities])
 
     useEffect(() => {
-        setSelectedTraits((prev) => (prev.length > 0 ? prev : availableTraits))
+        if (availableTraits.length === 0) return
+
+        setSelectedTraits((prev) => {
+            if (prev.length > 0) return prev
+            return availableTraits
+        })
     }, [availableTraits])
 
     useEffect(() => {
-        setSelectedAspects((prev) => (prev.length > 0 ? prev : availableAspects))
-    }, [availableAspects])
+        if (availableAspects.length === 0) return
 
-    useEffect(() => {
-        setSelectedArenas((prev) => (prev.length > 0 ? prev : availableArenas))
-    }, [availableArenas])
+        setSelectedAspects((prev) => {
+            if (prev.length > 0) return prev
+            return availableAspects
+        })
+    }, [availableAspects])
 
     const filteredCards = useMemo(() => {
         if (baseCards.length === 0) return []
@@ -440,35 +331,22 @@ export default function App() {
         const selectedRaritySet = new Set(selectedRarities)
         const selectedTraitSet = new Set(selectedTraits)
         const selectedAspectSet = new Set(selectedAspects)
-        const selectedArenaSet = new Set(selectedArenas)
 
-        const filtered = baseCards.filter((card) => {
+        return baseCards.filter((card) => {
             const type = getType(card)
             const expansion = getExpansion(card)
             const rarity = getRarity(card)
             const traits = getRelationNames(card.attributes.traits?.data)
             const aspects = getRelationNames(card.attributes.aspects?.data)
-            const arenas = getRelationNames(card.attributes.arenas?.data)
-
-            const cost = getNumericValue(card.attributes.cost)
-            const power = getNumericValue(card.attributes.power)
-            const hp = getNumericValue(card.attributes.hp)
 
             return (
                 matchesFilter(type, typeFilterMode, selectedTypeSet) &&
                 matchesFilter(expansion, expansionFilterMode, selectedExpansionSet) &&
                 matchesFilter(rarity, rarityFilterMode, selectedRaritySet) &&
                 matchesMultiValueFilter(traits, traitFilterMode, selectedTraitSet) &&
-                matchesMultiValueFilter(aspects, aspectFilterMode, selectedAspectSet) &&
-                matchesMultiValueFilter(arenas, arenaFilterMode, selectedArenaSet) &&
-                matchesRange(cost, costRange) &&
-                matchesRange(power, powerRange) &&
-                matchesRange(hp, hpRange) &&
-                matchesKeyword(card, keyword)
+                matchesMultiValueFilter(aspects, aspectFilterMode, selectedAspectSet)
             )
         })
-
-        return [...filtered].sort((a, b) => compareByRules(a, b, sortRules))
     }, [
         baseCards,
         selectedTypes,
@@ -481,13 +359,6 @@ export default function App() {
         traitFilterMode,
         selectedAspects,
         aspectFilterMode,
-        selectedArenas,
-        arenaFilterMode,
-        costRange,
-        powerRange,
-        hpRange,
-        keyword,
-        sortRules,
     ])
 
     useEffect(() => {
@@ -504,13 +375,6 @@ export default function App() {
         traitFilterMode,
         selectedAspects,
         aspectFilterMode,
-        selectedArenas,
-        arenaFilterMode,
-        costRange,
-        powerRange,
-        hpRange,
-        keyword,
-        sortRules,
     ])
 
     useEffect(() => {
@@ -543,6 +407,14 @@ export default function App() {
         setImageLoading(true)
         setImageError(false)
     }, [imageUrl])
+
+    const currentDeckCount = current
+        ? deckEntries.find((entry) => entry.key === getDeduplicationKey(current))?.count ?? 0
+        : 0
+
+    const totalDeckCards = useMemo(() => {
+        return deckEntries.reduce((sum, entry) => sum + entry.count, 0)
+    }, [deckEntries])
 
     function previousCard() {
         setIndex((prev) => Math.max(prev - 1, 0))
@@ -586,24 +458,6 @@ export default function App() {
         )
     }
 
-    function toggleArena(value: string) {
-        setSelectedArenas((prev) =>
-            prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value],
-        )
-    }
-
-    function updateCostRange(part: 'min' | 'max', value: string) {
-        setCostRange((prev) => ({ ...prev, [part]: value }))
-    }
-
-    function updatePowerRange(part: 'min' | 'max', value: string) {
-        setPowerRange((prev) => ({ ...prev, [part]: value }))
-    }
-
-    function updateHpRange(part: 'min' | 'max', value: string) {
-        setHpRange((prev) => ({ ...prev, [part]: value }))
-    }
-
     function selectAllTypes() {
         setSelectedTypes(availableTypes)
     }
@@ -618,13 +472,6 @@ export default function App() {
 
     function clearAllExpansions() {
         setSelectedExpansions([])
-    }
-
-    function selectPremierLegalExpansions() {
-        setExpansionFilterMode('include')
-        setSelectedExpansions(
-            availableExpansions.filter((expansion) => PREMIER_LEGAL_EXPANSIONS.includes(expansion)),
-        )
     }
 
     function selectAllRarities() {
@@ -651,82 +498,46 @@ export default function App() {
         setSelectedAspects([])
     }
 
-    function selectAllArenas() {
-        setSelectedArenas(availableArenas)
-    }
+    function addCardToDeck(card: SwuCard) {
+        const key = getDeduplicationKey(card)
 
-    function clearAllArenas() {
-        setSelectedArenas([])
-    }
+        setDeckEntries((prev) => {
+            const existing = prev.find((entry) => entry.key === key)
 
-    function addSortRule() {
-        setSortRules((prev) => [...prev, createSortRule('title', 'asc')])
-    }
-
-    function updateSortRuleField(id: string, field: SortField) {
-        setSortRules((prev) => prev.map((rule) => (rule.id === id ? { ...rule, field } : rule)))
-    }
-
-    function updateSortRuleDirection(id: string, direction: SortDirection) {
-        setSortRules((prev) => prev.map((rule) => (rule.id === id ? { ...rule, direction } : rule)))
-    }
-
-    function moveSortRuleUp(id: string) {
-        setSortRules((prev) => {
-            const index = prev.findIndex((rule) => rule.id === id)
-            if (index <= 0) return prev
-
-            const next = [...prev]
-            ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
-            return next
-        })
-    }
-
-    function moveSortRuleDown(id: string) {
-        setSortRules((prev) => {
-            const index = prev.findIndex((rule) => rule.id === id)
-            if (index < 0 || index >= prev.length - 1) return prev
-
-            const next = [...prev]
-            ;[next[index], next[index + 1]] = [next[index + 1], next[index]]
-            return next
-        })
-    }
-
-    function removeSortRule(id: string) {
-        setSortRules((prev) => {
-            if (prev.length <= 1) {
-                return [createSortRule('title', 'asc')]
+            if (!existing) {
+                return [...prev, { key, count: 1, card }]
             }
 
-            return prev.filter((rule) => rule.id !== id)
+            if (existing.count >= MAX_COPIES_PER_CARD) {
+                return prev
+            }
+
+            return prev.map((entry) =>
+                entry.key === key ? { ...entry, count: entry.count + 1 } : entry,
+            )
         })
     }
 
-    function resetToDefaultFilters() {
-        setShowDuplicates(false)
+    function incrementDeckEntry(key: string) {
+        setDeckEntries((prev) =>
+            prev.map((entry) =>
+                entry.key === key
+                    ? { ...entry, count: Math.min(entry.count + 1, MAX_COPIES_PER_CARD) }
+                    : entry,
+            ),
+        )
+    }
 
-        setTypeFilterMode('include')
-        setExpansionFilterMode('include')
-        setRarityFilterMode('include')
-        setTraitFilterMode('include')
-        setAspectFilterMode('include')
-        setArenaFilterMode('include')
+    function decrementDeckEntry(key: string) {
+        setDeckEntries((prev) =>
+            prev
+                .map((entry) => (entry.key === key ? { ...entry, count: entry.count - 1 } : entry))
+                .filter((entry) => entry.count > 0),
+        )
+    }
 
-        setSelectedTypes(availableTypes)
-        setSelectedExpansions(availableExpansions)
-        setSelectedRarities(availableRarities)
-        setSelectedTraits(availableTraits)
-        setSelectedAspects(availableAspects)
-        setSelectedArenas(availableArenas)
-
-        setCostRange({ min: '', max: '' })
-        setPowerRange({ min: '', max: '' })
-        setHpRange({ min: '', max: '' })
-
-        setKeyword('')
-        setSortRules([createSortRule('title', 'asc')])
-        setIndex(0)
+    function removeDeckEntry(key: string) {
+        setDeckEntries((prev) => prev.filter((entry) => entry.key !== key))
     }
 
     if (loading) {
@@ -789,9 +600,6 @@ export default function App() {
                     <FilterPanel
                         showDuplicates={showDuplicates}
                         onShowDuplicatesChange={setShowDuplicates}
-                        onResetToDefaults={resetToDefaultFilters}
-                        keyword={keyword}
-                        onKeywordChange={setKeyword}
                         types={availableTypes}
                         typeMode={typeFilterMode}
                         selectedTypes={selectedTypes}
@@ -820,13 +628,6 @@ export default function App() {
                         onToggleAspect={toggleAspect}
                         onSelectAllAspects={selectAllAspects}
                         onClearAllAspects={clearAllAspects}
-                        arenas={availableArenas}
-                        arenaMode={arenaFilterMode}
-                        selectedArenas={selectedArenas}
-                        onArenaModeChange={setArenaFilterMode}
-                        onToggleArena={toggleArena}
-                        onSelectAllArenas={selectAllArenas}
-                        onClearAllArenas={clearAllArenas}
                         expansions={availableExpansions}
                         expansionMode={expansionFilterMode}
                         selectedExpansions={selectedExpansions}
@@ -834,23 +635,6 @@ export default function App() {
                         onToggleExpansion={toggleExpansion}
                         onSelectAllExpansions={selectAllExpansions}
                         onClearAllExpansions={clearAllExpansions}
-                        onSelectPremierExpansions={selectPremierLegalExpansions}
-                        costRange={costRange}
-                        onCostMinChange={(value) => updateCostRange('min', value)}
-                        onCostMaxChange={(value) => updateCostRange('max', value)}
-                        powerRange={powerRange}
-                        onPowerMinChange={(value) => updatePowerRange('min', value)}
-                        onPowerMaxChange={(value) => updatePowerRange('max', value)}
-                        hpRange={hpRange}
-                        onHpMinChange={(value) => updateHpRange('min', value)}
-                        onHpMaxChange={(value) => updateHpRange('max', value)}
-                        sortRules={sortRules}
-                        onAddSortRule={addSortRule}
-                        onUpdateSortRuleField={updateSortRuleField}
-                        onUpdateSortRuleDirection={updateSortRuleDirection}
-                        onMoveSortRuleUp={moveSortRuleUp}
-                        onMoveSortRuleDown={moveSortRuleDown}
-                        onRemoveSortRule={removeSortRule}
                     />
                 </section>
             ) : null}
@@ -858,7 +642,7 @@ export default function App() {
             {!current ? (
                 <div className="status">Po aplikaci filtrů nezůstala žádná karta.</div>
             ) : (
-                <div className="layout">
+                <div className="builder-layout">
                     <section className="card-panel">
                         <div className="card-image-wrap">
                             {imageUrl ? (
@@ -889,9 +673,24 @@ export default function App() {
                     </section>
 
                     <section className="details-panel">
-                        <h2>{getCardName(current)}</h2>
+                        <div className="details-header-row">
+                            <div>
+                                <h2>{getCardName(current)}</h2>
+                                {getSubtitle(current) ? <div className="subtitle">{getSubtitle(current)}</div> : null}
+                            </div>
 
-                        {getSubtitle(current) ? <div className="subtitle">{getSubtitle(current)}</div> : null}
+                            <div className="builder-actions">
+                                <button
+                                    type="button"
+                                    onClick={() => addCardToDeck(current)}
+                                    disabled={currentDeckCount >= MAX_COPIES_PER_CARD}
+                                >
+                                    {currentDeckCount >= MAX_COPIES_PER_CARD
+                                        ? 'Maximum 3×'
+                                        : `Přidat do listu (${currentDeckCount}/3)`}
+                                </button>
+                            </div>
+                        </div>
 
                         <div className="info-table">
                             {infoRows.map(([label, value]) => (
@@ -909,6 +708,76 @@ export default function App() {
                             </div>
                         ) : null}
                     </section>
+
+                    <aside className="deck-panel">
+                        <div className="deck-panel-header">
+                            <h3>Seznam</h3>
+                            <div className="deck-count">{totalDeckCards} ks</div>
+                        </div>
+
+                        {deckEntries.length === 0 ? (
+                            <div className="deck-empty">Zatím nemáš přidané žádné karty.</div>
+                        ) : (
+                            <div className="deck-entry-list">
+                                {deckEntries.map((entry) => {
+                                    const deckImageUrl = getImageUrl(entry.card)
+
+                                    return (
+                                        <div key={entry.key} className="deck-entry-card">
+                                            <div className="deck-entry-top">
+                                                {deckImageUrl ? (
+                                                    <img
+                                                        className="deck-entry-image"
+                                                        src={deckImageUrl}
+                                                        alt={getCardName(entry.card)}
+                                                    />
+                                                ) : (
+                                                    <div className="deck-entry-image deck-entry-image-placeholder">Bez obrázku</div>
+                                                )}
+
+                                                <div className="deck-entry-meta">
+                                                    <div className="deck-entry-name">{getCardName(entry.card)}</div>
+                                                    {getSubtitle(entry.card) ? (
+                                                        <div className="deck-entry-subtitle">{getSubtitle(entry.card)}</div>
+                                                    ) : null}
+                                                    <div className="deck-entry-expansion">{getExpansion(entry.card)}</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="deck-entry-bottom">
+                                                <div className="deck-entry-count">{entry.count} / 3</div>
+
+                                                <div className="deck-entry-actions">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => decrementDeckEntry(entry.key)}
+                                                        title="Odebrat 1"
+                                                    >
+                                                        -
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => incrementDeckEntry(entry.key)}
+                                                        disabled={entry.count >= MAX_COPIES_PER_CARD}
+                                                        title="Přidat 1"
+                                                    >
+                                                        +
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeDeckEntry(entry.key)}
+                                                        title="Odebrat kartu"
+                                                    >
+                                                        Odebrat
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </aside>
                 </div>
             )}
         </div>
