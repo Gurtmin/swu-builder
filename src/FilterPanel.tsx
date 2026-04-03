@@ -17,6 +17,10 @@ type FilterGroupProps = {
 type FilterPanelProps = {
     showDuplicates: boolean
     onShowDuplicatesChange: (value: boolean) => void
+    showAttributesPanel: boolean
+    onShowAttributesPanelChange: (value: boolean) => void
+    keyword: string
+    onKeywordChange: (value: string) => void
     costRange: RangeValue
     powerRange: RangeValue
     hpRange: RangeValue
@@ -110,7 +114,7 @@ function FilterGroup({
             <div className="filter-group-actions">
                 {extraActions}
                 <button type="button" onClick={onSelectAll}>
-                    Vše
+                    Vse
                 </button>
                 <button type="button" onClick={onClearAll}>
                     Nic
@@ -181,8 +185,18 @@ function FilterPanelComponent(props: FilterPanelProps) {
         <>
             <div className="filter-group">
                 <div className="filter-group-header">
-                    <strong>Obecné</strong>
+                    <strong>Obecne</strong>
                 </div>
+
+                <label className="filter-text-field">
+                    <span>Text</span>
+                    <input
+                        type="text"
+                        value={props.keyword}
+                        onChange={(e) => props.onKeywordChange(e.target.value)}
+                        placeholder="nazev nebo text karty"
+                    />
+                </label>
 
                 <label className="filter-item">
                     <input
@@ -190,19 +204,28 @@ function FilterPanelComponent(props: FilterPanelProps) {
                         checked={props.showDuplicates}
                         onChange={(e) => props.onShowDuplicatesChange(e.target.checked)}
                     />
-                    <span>Zobrazit duplicitní karty</span>
+                    <span>Zobrazit duplicitni karty</span>
+                </label>
+
+                <label className="filter-item">
+                    <input
+                        type="checkbox"
+                        checked={props.showAttributesPanel}
+                        onChange={(e) => props.onShowAttributesPanelChange(e.target.checked)}
+                    />
+                    <span>Zobrazit stredni panel detailu</span>
                 </label>
             </div>
 
             <div className="filters-panel">
                 <section className="filter-group">
                     <div className="filter-group-header">
-                        <strong>Číselné</strong>
+                        <strong>Ciselne</strong>
                     </div>
 
                     <div className="filter-group-actions">
                         <button type="button" onClick={props.onClearNumericFilters}>
-                            Vyčistit
+                            Vycistit
                         </button>
                     </div>
 

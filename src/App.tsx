@@ -35,6 +35,8 @@ type PersistedDeckEntry = {
 
 type PersistedFilters = {
     showDuplicates?: unknown
+    showAttributesPanel?: unknown
+    keyword?: unknown
     typeFilterMode?: unknown
     selectedTypes?: unknown
     expansionFilterMode?: unknown
@@ -115,7 +117,7 @@ function parseDeckEntriesFromStorage(raw: string | null): DeckEntry[] {
             })
         })
 
-        return [...merged.values()]
+        return normalizeDeckEntries([...merged.values()])
     } catch {
         return []
     }
@@ -123,6 +125,47 @@ function parseDeckEntriesFromStorage(raw: string | null): DeckEntry[] {
 
 function buildDeckEntryKey(card: SwuCard, zone: DeckZone): string {
     return `${getDeduplicationKey(card)}|||${zone}`
+}
+
+function getTotalCopiesForCard(entries: DeckEntry[], card: SwuCard): number {
+    const dedupKey = getDeduplicationKey(card)
+    return entries
+        .filter((entry) => getDeduplicationKey(entry.card) === dedupKey)
+        .reduce((sum, entry) => sum + entry.count, 0)
+}
+
+function normalizeDeckEntries(entries: DeckEntry[]): DeckEntry[] {
+    const byCardKey = new Map<string, DeckEntry[]>()
+
+    entries.forEach((entry) => {
+        const key = getDeduplicationKey(entry.card)
+        const bucket = byCardKey.get(key) || []
+        bucket.push(entry)
+        byCardKey.set(key, bucket)
+    })
+
+    const normalized: DeckEntry[] = []
+
+    byCardKey.forEach((group) => {
+        const ordered = [...group].sort((a, b) => {
+            if (a.zone !== b.zone) {
+                return a.zone === 'deck' ? -1 : 1
+            }
+            return a.key.localeCompare(b.key)
+        })
+
+        let remaining = MAX_COPIES_PER_CARD
+        ordered.forEach((entry) => {
+            if (remaining <= 0) return
+            const nextCount = Math.min(entry.count, remaining)
+            if (nextCount > 0) {
+                normalized.push({ ...entry, count: nextCount })
+                remaining -= nextCount
+            }
+        })
+    })
+
+    return normalized
 }
 
 function parseFiltersFromStorage(raw: string | null): PersistedFilters | null {
@@ -134,6 +177,10 @@ function parseFiltersFromStorage(raw: string | null): PersistedFilters | null {
     } catch {
         return null
     }
+}
+
+function toKeyword(value: unknown): string | null {
+    return typeof value === 'string' ? value : null
 }
 
 function getSubtitle(card: SwuCard): string | null {
@@ -334,6 +381,7 @@ export default function App() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [filtersOpen, setFiltersOpen] = useState(false)
+    const [keyword, setKeyword] = useState('')
 
     const [typeFilterMode, setTypeFilterMode] = useState<FilterMode>('include')
     const [selectedTypes, setSelectedTypes] = useState<string[]>([])
@@ -351,6 +399,7 @@ export default function App() {
     const [selectedAspects, setSelectedAspects] = useState<string[]>([])
 
     const [showDuplicates, setShowDuplicates] = useState(false)
+    const [showAttributesPanel, setShowAttributesPanel] = useState(true)
     const [deckEntries, setDeckEntries] = useState<DeckEntry[]>([])
     const [costRange, setCostRange] = useState<RangeValue>(emptyRange)
     const [powerRange, setPowerRange] = useState<RangeValue>(emptyRange)
@@ -408,6 +457,11 @@ export default function App() {
         if (typeof storedFilters.showDuplicates === 'boolean') {
             setShowDuplicates(storedFilters.showDuplicates)
         }
+        if (typeof storedFilters.showAttributesPanel === 'boolean') {
+            setShowAttributesPanel(storedFilters.showAttributesPanel)
+        }
+        const nextKeyword = toKeyword(storedFilters.keyword)
+        if (nextKeyword !== null) setKeyword(nextKeyword)
 
         const nextTypeMode = toFilterMode(storedFilters.typeFilterMode)
         if (nextTypeMode) setTypeFilterMode(nextTypeMode)
@@ -451,6 +505,8 @@ export default function App() {
             FILTERS_STORAGE_KEY,
             JSON.stringify({
                 showDuplicates,
+                showAttributesPanel,
+                keyword,
                 typeFilterMode,
                 selectedTypes,
                 expansionFilterMode,
@@ -468,6 +524,8 @@ export default function App() {
         )
     }, [
         showDuplicates,
+        showAttributesPanel,
+        keyword,
         typeFilterMode,
         selectedTypes,
         expansionFilterMode,
@@ -587,6 +645,7 @@ export default function App() {
 
     const filteredCards = useMemo(() => {
         if (baseCards.length === 0) return []
+        const normalizedKeyword = keyword.trim().toLowerCase()
 
         const selectedTypeSet = new Set(selectedTypes)
         const selectedExpansionSet = new Set(selectedExpansions)
@@ -600,8 +659,16 @@ export default function App() {
             const rarity = getRarity(card)
             const traits = getRelationNames(card.attributes.traits?.data)
             const aspects = getRelationNames(card.attributes.aspects?.data)
+            const subtitle = getSubtitle(card)
+            const rulesText = getRulesText(card)
+            const keywordMatch =
+                normalizedKeyword.length === 0 ||
+                getCardName(card).toLowerCase().includes(normalizedKeyword) ||
+                (subtitle ? subtitle.toLowerCase().includes(normalizedKeyword) : false) ||
+                (rulesText ? rulesText.toLowerCase().includes(normalizedKeyword) : false)
 
             return (
+                keywordMatch &&
                 matchesFilter(type, typeFilterMode, selectedTypeSet) &&
                 matchesFilter(expansion, expansionFilterMode, selectedExpansionSet) &&
                 matchesFilter(rarity, rarityFilterMode, selectedRaritySet) &&
@@ -614,6 +681,7 @@ export default function App() {
         })
     }, [
         baseCards,
+        keyword,
         selectedTypes,
         typeFilterMode,
         selectedExpansions,
@@ -633,6 +701,7 @@ export default function App() {
         setIndex(0)
     }, [
         showDuplicates,
+        keyword,
         selectedTypes,
         typeFilterMode,
         selectedExpansions,
@@ -685,6 +754,7 @@ export default function App() {
     const currentSideboardCount = current
         ? deckEntries.find((entry) => entry.key === buildDeckEntryKey(current, 'sideboard'))?.count ?? 0
         : 0
+    const currentTotalCount = current ? getTotalCopiesForCard(deckEntries, current) : 0
 
     const totalDeckCards = useMemo(() => {
         return deckEntries
@@ -809,6 +879,10 @@ export default function App() {
         const key = buildDeckEntryKey(card, zone)
 
         setDeckEntries((prev) => {
+            if (getTotalCopiesForCard(prev, card) >= MAX_COPIES_PER_CARD) {
+                return prev
+            }
+
             const existing = prev.find((entry) => entry.key === key)
 
             if (!existing) {
@@ -826,13 +900,19 @@ export default function App() {
     }
 
     function incrementDeckEntry(key: string) {
-        setDeckEntries((prev) =>
-            prev.map((entry) =>
+        setDeckEntries((prev) => {
+            const target = prev.find((entry) => entry.key === key)
+            if (!target) return prev
+            if (getTotalCopiesForCard(prev, target.card) >= MAX_COPIES_PER_CARD) {
+                return prev
+            }
+
+            return prev.map((entry) =>
                 entry.key === key
                     ? { ...entry, count: Math.min(entry.count + 1, MAX_COPIES_PER_CARD) }
                     : entry,
-            ),
-        )
+            )
+        })
     }
 
     function decrementDeckEntry(key: string, cardName: string) {
@@ -870,11 +950,6 @@ export default function App() {
                 return prev
             }
 
-            const toEntry = prev.find((entry) => entry.key === toKey)
-            if (toEntry && toEntry.count >= MAX_COPIES_PER_CARD) {
-                return prev
-            }
-
             let next = prev
             if (fromEntry.count <= 1) {
                 next = next.filter((entry) => entry.key !== fromKey)
@@ -906,8 +981,9 @@ export default function App() {
         const otherZone: DeckZone = entry.zone === 'deck' ? 'sideboard' : 'deck'
         const otherKey = buildDeckEntryKey(entry.card, otherZone)
         const otherCount = deckEntries.find((item) => item.key === otherKey)?.count ?? 0
-        const canTransferOut = entry.count > 0 && otherCount < MAX_COPIES_PER_CARD
-        const canTransferIn = otherCount > 0 && entry.count < MAX_COPIES_PER_CARD
+        const canTransferOut = entry.count > 0
+        const canTransferIn = otherCount > 0
+        const totalCopies = getTotalCopiesForCard(deckEntries, entry.card)
 
         return (
             <div key={entry.key} className="deck-entry-card">
@@ -953,7 +1029,7 @@ export default function App() {
                         <button
                             type="button"
                             onClick={() => incrementDeckEntry(entry.key)}
-                            disabled={entry.count >= MAX_COPIES_PER_CARD}
+                            disabled={totalCopies >= MAX_COPIES_PER_CARD}
                             title="PĹ™idat 1"
                         >
                             +
@@ -1032,6 +1108,10 @@ export default function App() {
                     <FilterPanel
                         showDuplicates={showDuplicates}
                         onShowDuplicatesChange={setShowDuplicates}
+                        showAttributesPanel={showAttributesPanel}
+                        onShowAttributesPanelChange={setShowAttributesPanel}
+                        keyword={keyword}
+                        onKeywordChange={setKeyword}
                         costRange={costRange}
                         powerRange={powerRange}
                         hpRange={hpRange}
@@ -1082,7 +1162,7 @@ export default function App() {
             {!current ? (
                 <div className="status">Po aplikaci filtrů nezůstala žádná karta.</div>
             ) : (
-                <div className="builder-layout">
+                <div className={`builder-layout ${showAttributesPanel ? '' : 'builder-layout-no-details'}`.trim()}>
                     <section className="card-panel">
                         <div className="card-image-wrap">
                             {imageUrl ? (
@@ -1110,23 +1190,53 @@ export default function App() {
                                 <div className="image-placeholder">Bez obrázku</div>
                             )}
                         </div>
+                        <div className="builder-actions card-panel-actions">
+                            <button
+                                type="button"
+                                className="deck-add-button"
+                                onClick={() => addCardToList(current, 'deck')}
+                                disabled={currentTotalCount >= MAX_COPIES_PER_CARD}
+                                data-label={
+                                    currentTotalCount >= MAX_COPIES_PER_CARD
+                                        ? 'Deck max 3x'
+                                        : `Pridat do decku (${currentDeckCount}${
+                                              currentSideboardCount > 0
+                                                  ? ` (sideboard ${currentSideboardCount})`
+                                                  : ''
+                                          })`
+                                }
+                            >
+                                {currentTotalCount >= MAX_COPIES_PER_CARD
+                                    ? 'Maximum 3Ă—'
+                                    : `PĹ™idat do listu (${currentDeckCount}/3)`}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => addCardToList(current, 'sideboard')}
+                                disabled={currentTotalCount >= MAX_COPIES_PER_CARD}
+                            >
+                                {currentTotalCount >= MAX_COPIES_PER_CARD
+                                    ? 'Sideboard max 3x'
+                                    : `Pridat do sideboardu (${currentSideboardCount})`}
+                            </button>
+                        </div>
                     </section>
 
-                    <section className="details-panel">
+                    {showAttributesPanel ? <section className="details-panel">
                         <div className="details-header-row">
                             <div>
                                 <h2>{getCardName(current)}</h2>
                                 {getSubtitle(current) ? <div className="subtitle">{getSubtitle(current)}</div> : null}
                             </div>
 
-                            <div className="builder-actions">
+                            {false ? <div className="builder-actions">
                                 <button
                                     type="button"
                                     className="deck-add-button"
                                     onClick={() => addCardToList(current, 'deck')}
-                                    disabled={currentDeckCount >= MAX_COPIES_PER_CARD}
+                                    disabled={currentTotalCount >= MAX_COPIES_PER_CARD}
                                     data-label={
-                                        currentDeckCount >= MAX_COPIES_PER_CARD
+                                        currentTotalCount >= MAX_COPIES_PER_CARD
                                             ? 'Deck max 3x'
                                             : `Pridat do decku (${currentDeckCount}${
                                                   currentSideboardCount > 0
@@ -1135,33 +1245,35 @@ export default function App() {
                                               })`
                                     }
                                 >
-                                    {currentDeckCount >= MAX_COPIES_PER_CARD
+                                    {currentTotalCount >= MAX_COPIES_PER_CARD
                                         ? 'Maximum 3×'
                                         : `Přidat do listu (${currentDeckCount}/3)`}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => addCardToList(current, 'sideboard')}
-                                    disabled={currentSideboardCount >= MAX_COPIES_PER_CARD}
+                                    disabled={currentTotalCount >= MAX_COPIES_PER_CARD}
                                 >
-                                    {currentSideboardCount >= MAX_COPIES_PER_CARD
+                                    {currentTotalCount >= MAX_COPIES_PER_CARD
                                         ? 'Sideboard max 3x'
                                         : `Pridat do sideboardu (${currentSideboardCount})`}
                                 </button>
-                            </div>
+                            </div> : null}
                             {currentSideboardCount > 0 ? (
                                 <div className="subtitle">(sideboard: {currentSideboardCount})</div>
                             ) : null}
                         </div>
 
-                        <div className="info-table">
-                            {infoRows.map(([label, value]) => (
-                                <div key={label} className="info-row">
-                                    <div className="info-label">{label}</div>
-                                    <div className="info-value">{String(value)}</div>
-                                </div>
-                            ))}
-                        </div>
+                        {showAttributesPanel ? (
+                            <div className="info-table">
+                                {infoRows.map(([label, value]) => (
+                                    <div key={label} className="info-row">
+                                        <div className="info-label">{label}</div>
+                                        <div className="info-value">{String(value)}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : null}
 
                         {getRulesText(current) ? (
                             <div className="rules-box">
@@ -1169,11 +1281,10 @@ export default function App() {
                                 <div>{getRulesText(current)}</div>
                             </div>
                         ) : null}
-                    </section>
+                    </section> : null}
 
                     <aside className="deck-panel">
                         <div className="deck-panel-header">
-                            <h3>Seznam</h3>
                             <div className="deck-count">
                                 Deck {totalDeckCards} ks | Sideboard {totalSideboardCards} ks
                             </div>
@@ -1250,7 +1361,7 @@ export default function App() {
                         )}
                         {deckEntries.length > 0 ? (
                             <div className="deck-sections">
-                                <section>
+                                <section className="deck-section-box">
                                     <h4 className="deck-section-title">Deck</h4>
                                     {deckZoneEntries.length === 0 ? (
                                         <div className="deck-empty">Deck je prazdny.</div>
@@ -1260,7 +1371,7 @@ export default function App() {
                                         </div>
                                     )}
                                 </section>
-                                <section>
+                                <section className="deck-section-box">
                                     <h4 className="deck-section-title">Sideboard</h4>
                                     {sideboardZoneEntries.length === 0 ? (
                                         <div className="deck-empty">Sideboard je prazdny.</div>
