@@ -141,6 +141,32 @@ input {
     flex-wrap: wrap;
 }
 
+.filter-mode-buttons {
+    margin-bottom: 0.75rem;
+}
+
+.filter-group-actions {
+    margin-bottom: 0.75rem;
+}
+
+.filter-group-actions button,
+.segmented {
+    border: 0;
+    border-radius: 12px;
+    padding: 10px 16px;
+    color: white;
+    cursor: pointer;
+    background: #334155;
+    transition:
+        background-color 0.15s ease,
+        opacity 0.15s ease,
+        transform 0.15s ease;
+}
+
+.segmented.active {
+    background: #2563eb;
+}
+
 .filter-items {
     display: grid;
     gap: 0.35rem;
@@ -153,6 +179,80 @@ input {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+}
+
+.filter-item.aspect-chip {
+    padding: 0.32rem 0.55rem;
+    border-radius: 999px;
+}
+
+.filter-item.aspect-chip span {
+    font-weight: 600;
+}
+
+.filter-item.aspect-villainy {
+    background: #000000;
+    color: #ffffff;
+}
+
+.filter-item.aspect-command {
+    background: #16a34a;
+    color: #ffffff;
+}
+
+.filter-item.aspect-aggression {
+    background: #dc2626;
+    color: #ffffff;
+}
+
+.filter-item.aspect-cunning {
+    background: #facc15;
+    color: #111827;
+}
+
+.filter-item.aspect-heroism {
+    background: #d8c7a0;
+    color: #111827;
+}
+
+.filter-item.aspect-vigilance {
+    background: #2563eb;
+    color: #ffffff;
+}
+
+.filter-item input[type='checkbox'] {
+    width: 16px;
+    height: 16px;
+}
+
+.numeric-filter-grid {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.numeric-filter-row {
+    display: grid;
+    grid-template-columns: minmax(72px, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.numeric-filter-label {
+    font-weight: 600;
+    color: #e5e7eb;
+}
+
+.numeric-filter-row input[type='number'] {
+    width: 100%;
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    background: rgba(15, 23, 42, 0.75);
+    color: #f8fafc;
+    border-radius: 10px;
+    padding: 8px 10px;
+}
+
+.filters-panel {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
 /* BUILDER LAYOUT */
@@ -191,6 +291,15 @@ input {
             transform 0.15s ease;
 }
 
+.deck-add-button {
+    font-size: 0;
+}
+
+.deck-add-button::after {
+    content: attr(data-label);
+    font-size: 16px;
+}
+
 .deck-panel {
     position: sticky;
     top: 24px;
@@ -224,6 +333,17 @@ input {
 .deck-entry-list {
     display: grid;
     gap: 14px;
+}
+
+.deck-sections {
+    display: grid;
+    gap: 16px;
+}
+
+.deck-section-title {
+    margin: 0 0 10px;
+    font-size: 16px;
+    color: #cbd5e1;
 }
 
 .deck-entry-card {

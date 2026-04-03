@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import FilterPanel from './FilterPanel'
-import type { FilterMode, SwuCard } from './types'
+import type { FilterMode, RangeValue, SwuCard } from './types'
 
 const DATA_URL = import.meta.env.VITE_CARDS_URL || '/cards.json'
 const MAX_COPIES_PER_CARD = 3
+const DECK_STORAGE_KEY = 'swu-builder.deckEntries.v1'
+const FILTERS_STORAGE_KEY = 'swu-builder.filters.v1'
+const PREMIER_LEGAL_EXPANSIONS = [
+    'Jump to Lightspeed',
+    'Legends of the Force',
+    'Secrets of Power',
+    'A Lawless Time',
+]
 const API_BASE_URL =
     import.meta.env.VITE_API_BASE_URL ||
     import.meta.env.VITE_STRAPI_URL ||
@@ -13,10 +21,119 @@ type DeckEntry = {
     key: string
     count: number
     card: SwuCard
+    zone: DeckZone
+}
+
+type DeckZone = 'deck' | 'sideboard'
+
+type PersistedDeckEntry = {
+    key?: unknown
+    count?: unknown
+    card?: unknown
+    zone?: unknown
+}
+
+type PersistedFilters = {
+    showDuplicates?: unknown
+    typeFilterMode?: unknown
+    selectedTypes?: unknown
+    expansionFilterMode?: unknown
+    selectedExpansions?: unknown
+    rarityFilterMode?: unknown
+    selectedRarities?: unknown
+    traitFilterMode?: unknown
+    selectedTraits?: unknown
+    aspectFilterMode?: unknown
+    selectedAspects?: unknown
+    costRange?: unknown
+    powerRange?: unknown
+    hpRange?: unknown
 }
 
 function getCardName(card: SwuCard): string {
     return card.attributes.title || 'Unknown card'
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null
+}
+
+function isSwuCardLike(value: unknown): value is SwuCard {
+    if (!isObject(value)) return false
+    return typeof value.id === 'number' && isObject(value.attributes)
+}
+
+function toFilterMode(value: unknown): FilterMode | null {
+    return value === 'include' || value === 'exclude' ? value : null
+}
+
+function toStringArray(value: unknown): string[] | null {
+    if (!Array.isArray(value)) return null
+    return value.filter((item): item is string => typeof item === 'string')
+}
+
+function toRangeValue(value: unknown): RangeValue | null {
+    if (!isObject(value)) return null
+    const min = typeof value.min === 'string' ? value.min : ''
+    const max = typeof value.max === 'string' ? value.max : ''
+    return { min, max }
+}
+
+function parseDeckEntriesFromStorage(raw: string | null): DeckEntry[] {
+    if (!raw) return []
+
+    try {
+        const parsed = JSON.parse(raw) as PersistedDeckEntry[]
+        if (!Array.isArray(parsed)) return []
+
+        const normalized = parsed
+            .filter((item) => isObject(item))
+            .map((item) => {
+                const countNumber = typeof item.count === 'number' ? item.count : Number(item.count)
+                const count = Number.isFinite(countNumber)
+                    ? Math.min(Math.max(Math.trunc(countNumber), 1), MAX_COPIES_PER_CARD)
+                    : 1
+                const card = item.card
+                const zone: DeckZone = item.zone === 'sideboard' ? 'sideboard' : 'deck'
+                const key = isSwuCardLike(card) ? buildDeckEntryKey(card, zone) : ''
+
+                if (!key || !isSwuCardLike(card)) return null
+                return { key, count, card, zone }
+            })
+            .filter((item): item is DeckEntry => item !== null)
+
+        const merged = new Map<string, DeckEntry>()
+        normalized.forEach((entry) => {
+            const existing = merged.get(entry.key)
+            if (!existing) {
+                merged.set(entry.key, entry)
+                return
+            }
+            merged.set(entry.key, {
+                ...existing,
+                count: Math.min(existing.count + entry.count, MAX_COPIES_PER_CARD),
+            })
+        })
+
+        return [...merged.values()]
+    } catch {
+        return []
+    }
+}
+
+function buildDeckEntryKey(card: SwuCard, zone: DeckZone): string {
+    return `${getDeduplicationKey(card)}|||${zone}`
+}
+
+function parseFiltersFromStorage(raw: string | null): PersistedFilters | null {
+    if (!raw) return null
+
+    try {
+        const parsed = JSON.parse(raw) as PersistedFilters
+        return isObject(parsed) ? parsed : null
+    } catch {
+        return null
+    }
 }
 
 function getSubtitle(card: SwuCard): string | null {
@@ -156,7 +273,60 @@ function matchesMultiValueFilter(
     return values.every((value) => !selected.has(value))
 }
 
+function matchesAspectFilter(values: string[], mode: FilterMode, selected: Set<string>): boolean {
+    if (mode === 'exclude') {
+        return matchesMultiValueFilter(values, mode, selected)
+    }
+
+    if (selected.size === 0) {
+        return false
+    }
+
+    const extraAspectCount = values.filter((value) => !selected.has(value)).length
+
+    if (selected.size >= 3) {
+        return values.some((value) => selected.has(value)) && extraAspectCount === 0
+    }
+
+    if (selected.size === 2) {
+        return values.some((value) => selected.has(value)) && extraAspectCount <= 1
+    }
+
+    return values.some((value) => selected.has(value))
+}
+
+function parseRangeBound(value: string): number | null {
+    if (!value.trim()) return null
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+}
+
+function matchesNumericRange(value: number | null | undefined, range: RangeValue): boolean {
+    const min = parseRangeBound(range.min)
+    const max = parseRangeBound(range.max)
+
+    if (min === null && max === null) {
+        return true
+    }
+
+    if (typeof value !== 'number') {
+        return false
+    }
+
+    if (min !== null && value < min) {
+        return false
+    }
+
+    if (max !== null && value > max) {
+        return false
+    }
+
+    return true
+}
+
 export default function App() {
+    const emptyRange: RangeValue = { min: '', max: '' }
+
     const [imageLoading, setImageLoading] = useState(true)
     const [imageError, setImageError] = useState(false)
     const [cards, setCards] = useState<SwuCard[]>([])
@@ -182,6 +352,9 @@ export default function App() {
 
     const [showDuplicates, setShowDuplicates] = useState(false)
     const [deckEntries, setDeckEntries] = useState<DeckEntry[]>([])
+    const [costRange, setCostRange] = useState<RangeValue>(emptyRange)
+    const [powerRange, setPowerRange] = useState<RangeValue>(emptyRange)
+    const [hpRange, setHpRange] = useState<RangeValue>(emptyRange)
 
     useEffect(() => {
         let cancelled = false
@@ -220,6 +393,95 @@ export default function App() {
             cancelled = true
         }
     }, [])
+
+    useEffect(() => {
+        const fromStorage = parseDeckEntriesFromStorage(localStorage.getItem(DECK_STORAGE_KEY))
+        if (fromStorage.length > 0) {
+            setDeckEntries(fromStorage)
+        }
+    }, [])
+
+    useEffect(() => {
+        const storedFilters = parseFiltersFromStorage(localStorage.getItem(FILTERS_STORAGE_KEY))
+        if (!storedFilters) return
+
+        if (typeof storedFilters.showDuplicates === 'boolean') {
+            setShowDuplicates(storedFilters.showDuplicates)
+        }
+
+        const nextTypeMode = toFilterMode(storedFilters.typeFilterMode)
+        if (nextTypeMode) setTypeFilterMode(nextTypeMode)
+        const nextSelectedTypes = toStringArray(storedFilters.selectedTypes)
+        if (nextSelectedTypes) setSelectedTypes(nextSelectedTypes)
+
+        const nextExpansionMode = toFilterMode(storedFilters.expansionFilterMode)
+        if (nextExpansionMode) setExpansionFilterMode(nextExpansionMode)
+        const nextSelectedExpansions = toStringArray(storedFilters.selectedExpansions)
+        if (nextSelectedExpansions) setSelectedExpansions(nextSelectedExpansions)
+
+        const nextRarityMode = toFilterMode(storedFilters.rarityFilterMode)
+        if (nextRarityMode) setRarityFilterMode(nextRarityMode)
+        const nextSelectedRarities = toStringArray(storedFilters.selectedRarities)
+        if (nextSelectedRarities) setSelectedRarities(nextSelectedRarities)
+
+        const nextTraitMode = toFilterMode(storedFilters.traitFilterMode)
+        if (nextTraitMode) setTraitFilterMode(nextTraitMode)
+        const nextSelectedTraits = toStringArray(storedFilters.selectedTraits)
+        if (nextSelectedTraits) setSelectedTraits(nextSelectedTraits)
+
+        const nextAspectMode = toFilterMode(storedFilters.aspectFilterMode)
+        if (nextAspectMode) setAspectFilterMode(nextAspectMode)
+        const nextSelectedAspects = toStringArray(storedFilters.selectedAspects)
+        if (nextSelectedAspects) setSelectedAspects(nextSelectedAspects)
+
+        const nextCostRange = toRangeValue(storedFilters.costRange)
+        if (nextCostRange) setCostRange(nextCostRange)
+        const nextPowerRange = toRangeValue(storedFilters.powerRange)
+        if (nextPowerRange) setPowerRange(nextPowerRange)
+        const nextHpRange = toRangeValue(storedFilters.hpRange)
+        if (nextHpRange) setHpRange(nextHpRange)
+    }, [])
+
+    useEffect(() => {
+        localStorage.setItem(DECK_STORAGE_KEY, JSON.stringify(deckEntries))
+    }, [deckEntries])
+
+    useEffect(() => {
+        localStorage.setItem(
+            FILTERS_STORAGE_KEY,
+            JSON.stringify({
+                showDuplicates,
+                typeFilterMode,
+                selectedTypes,
+                expansionFilterMode,
+                selectedExpansions,
+                rarityFilterMode,
+                selectedRarities,
+                traitFilterMode,
+                selectedTraits,
+                aspectFilterMode,
+                selectedAspects,
+                costRange,
+                powerRange,
+                hpRange,
+            }),
+        )
+    }, [
+        showDuplicates,
+        typeFilterMode,
+        selectedTypes,
+        expansionFilterMode,
+        selectedExpansions,
+        rarityFilterMode,
+        selectedRarities,
+        traitFilterMode,
+        selectedTraits,
+        aspectFilterMode,
+        selectedAspects,
+        costRange,
+        powerRange,
+        hpRange,
+    ])
 
     const sortedCards = useMemo(() => {
         return [...cards].sort(compareCardsForDisplay)
@@ -344,7 +606,10 @@ export default function App() {
                 matchesFilter(expansion, expansionFilterMode, selectedExpansionSet) &&
                 matchesFilter(rarity, rarityFilterMode, selectedRaritySet) &&
                 matchesMultiValueFilter(traits, traitFilterMode, selectedTraitSet) &&
-                matchesMultiValueFilter(aspects, aspectFilterMode, selectedAspectSet)
+                matchesAspectFilter(aspects, aspectFilterMode, selectedAspectSet) &&
+                matchesNumericRange(card.attributes.cost, costRange) &&
+                matchesNumericRange(card.attributes.power, powerRange) &&
+                matchesNumericRange(card.attributes.hp, hpRange)
             )
         })
     }, [
@@ -359,6 +624,9 @@ export default function App() {
         traitFilterMode,
         selectedAspects,
         aspectFilterMode,
+        costRange,
+        powerRange,
+        hpRange,
     ])
 
     useEffect(() => {
@@ -375,6 +643,9 @@ export default function App() {
         traitFilterMode,
         selectedAspects,
         aspectFilterMode,
+        costRange,
+        powerRange,
+        hpRange,
     ])
 
     useEffect(() => {
@@ -409,12 +680,35 @@ export default function App() {
     }, [imageUrl])
 
     const currentDeckCount = current
-        ? deckEntries.find((entry) => entry.key === getDeduplicationKey(current))?.count ?? 0
+        ? deckEntries.find((entry) => entry.key === buildDeckEntryKey(current, 'deck'))?.count ?? 0
+        : 0
+    const currentSideboardCount = current
+        ? deckEntries.find((entry) => entry.key === buildDeckEntryKey(current, 'sideboard'))?.count ?? 0
         : 0
 
     const totalDeckCards = useMemo(() => {
-        return deckEntries.reduce((sum, entry) => sum + entry.count, 0)
+        return deckEntries
+            .filter((entry) => entry.zone === 'deck')
+            .reduce((sum, entry) => sum + entry.count, 0)
     }, [deckEntries])
+
+    const totalSideboardCards = useMemo(() => {
+        return deckEntries
+            .filter((entry) => entry.zone === 'sideboard')
+            .reduce((sum, entry) => sum + entry.count, 0)
+    }, [deckEntries])
+
+    const sortedDeckEntries = useMemo(() => {
+        return [...deckEntries].sort((a, b) => getCardName(a.card).localeCompare(getCardName(b.card)))
+    }, [deckEntries])
+
+    const deckZoneEntries = useMemo(() => {
+        return sortedDeckEntries.filter((entry) => entry.zone === 'deck')
+    }, [sortedDeckEntries])
+
+    const sideboardZoneEntries = useMemo(() => {
+        return sortedDeckEntries.filter((entry) => entry.zone === 'sideboard')
+    }, [sortedDeckEntries])
 
     function previousCard() {
         setIndex((prev) => Math.max(prev - 1, 0))
@@ -474,6 +768,13 @@ export default function App() {
         setSelectedExpansions([])
     }
 
+    function selectPremierExpansions() {
+        setExpansionFilterMode('include')
+        setSelectedExpansions(
+            availableExpansions.filter((expansion) => PREMIER_LEGAL_EXPANSIONS.includes(expansion)),
+        )
+    }
+
     function selectAllRarities() {
         setSelectedRarities(availableRarities)
     }
@@ -498,14 +799,20 @@ export default function App() {
         setSelectedAspects([])
     }
 
-    function addCardToDeck(card: SwuCard) {
-        const key = getDeduplicationKey(card)
+    function clearNumericFilters() {
+        setCostRange(emptyRange)
+        setPowerRange(emptyRange)
+        setHpRange(emptyRange)
+    }
+
+    function addCardToList(card: SwuCard, zone: DeckZone) {
+        const key = buildDeckEntryKey(card, zone)
 
         setDeckEntries((prev) => {
             const existing = prev.find((entry) => entry.key === key)
 
             if (!existing) {
-                return [...prev, { key, count: 1, card }]
+                return [...prev, { key, count: 1, card, zone }]
             }
 
             if (existing.count >= MAX_COPIES_PER_CARD) {
@@ -528,16 +835,141 @@ export default function App() {
         )
     }
 
-    function decrementDeckEntry(key: string) {
-        setDeckEntries((prev) =>
-            prev
-                .map((entry) => (entry.key === key ? { ...entry, count: entry.count - 1 } : entry))
-                .filter((entry) => entry.count > 0),
-        )
+    function decrementDeckEntry(key: string, cardName: string) {
+        const target = deckEntries.find((entry) => entry.key === key)
+        if (!target) return
+
+        if (target.count <= 1) {
+            const confirmed = window.confirm(`Oprvdu chcete odebrat ${cardName}`)
+            if (!confirmed) return
+        }
+
+        setDeckEntries((prev) => {
+            const current = prev.find((entry) => entry.key === key)
+            if (!current) return prev
+
+            if (current.count <= 1) {
+                return prev.filter((entry) => entry.key !== key)
+            }
+
+            return prev.map((entry) =>
+                entry.key === key ? { ...entry, count: entry.count - 1 } : entry,
+            )
+        })
     }
 
-    function removeDeckEntry(key: string) {
-        setDeckEntries((prev) => prev.filter((entry) => entry.key !== key))
+    function transferOneCopy(card: SwuCard, fromZone: DeckZone, toZone: DeckZone) {
+        if (fromZone === toZone) return
+
+        const fromKey = buildDeckEntryKey(card, fromZone)
+        const toKey = buildDeckEntryKey(card, toZone)
+
+        setDeckEntries((prev) => {
+            const fromEntry = prev.find((entry) => entry.key === fromKey)
+            if (!fromEntry || fromEntry.count <= 0) {
+                return prev
+            }
+
+            const toEntry = prev.find((entry) => entry.key === toKey)
+            if (toEntry && toEntry.count >= MAX_COPIES_PER_CARD) {
+                return prev
+            }
+
+            let next = prev
+            if (fromEntry.count <= 1) {
+                next = next.filter((entry) => entry.key !== fromKey)
+            } else {
+                next = next.map((entry) =>
+                    entry.key === fromKey ? { ...entry, count: entry.count - 1 } : entry,
+                )
+            }
+
+            const updatedToEntry = next.find((entry) => entry.key === toKey)
+            if (updatedToEntry) {
+                next = next.map((entry) =>
+                    entry.key === toKey ? { ...entry, count: entry.count + 1 } : entry,
+                )
+            } else {
+                next = [...next, { key: toKey, count: 1, card, zone: toZone }]
+            }
+
+            return next
+        })
+    }
+
+    function moveDeckEntryToOtherZone(_key: string) {
+        // Presun mezi sekcemi bude resen jinak.
+    }
+
+    function renderDeckEntry(entry: DeckEntry) {
+        const deckImageUrl = getImageUrl(entry.card)
+        const otherZone: DeckZone = entry.zone === 'deck' ? 'sideboard' : 'deck'
+        const otherKey = buildDeckEntryKey(entry.card, otherZone)
+        const otherCount = deckEntries.find((item) => item.key === otherKey)?.count ?? 0
+        const canTransferOut = entry.count > 0 && otherCount < MAX_COPIES_PER_CARD
+        const canTransferIn = otherCount > 0 && entry.count < MAX_COPIES_PER_CARD
+
+        return (
+            <div key={entry.key} className="deck-entry-card">
+                <div className="deck-entry-top">
+                    {deckImageUrl ? (
+                        <img
+                            className="deck-entry-image"
+                            src={deckImageUrl}
+                            alt={getCardName(entry.card)}
+                        />
+                    ) : (
+                        <div className="deck-entry-image deck-entry-image-placeholder">Bez obrĂˇzku</div>
+                    )}
+
+                    <div className="deck-entry-meta">
+                        <div className="deck-entry-name">{getCardName(entry.card)}</div>
+                        {getSubtitle(entry.card) ? (
+                            <div className="deck-entry-subtitle">{getSubtitle(entry.card)}</div>
+                        ) : null}
+                        <div className="deck-entry-expansion">{getExpansion(entry.card)}</div>
+                    </div>
+                </div>
+
+                <div className="deck-entry-bottom">
+                    <div className="deck-entry-count">{entry.count}</div>
+
+                    <div className="deck-entry-actions">
+                        <button
+                            type="button"
+                            onClick={() => decrementDeckEntry(entry.key, getCardName(entry.card))}
+                            title="Odebrat 1"
+                        >
+                            -
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => transferOneCopy(entry.card, entry.zone, otherZone)}
+                            disabled={!canTransferOut}
+                            title="Presunout 1 kopii do druhe sekce"
+                        >
+                            {otherZone === 'sideboard' ? '<SB' : '<D'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => incrementDeckEntry(entry.key)}
+                            disabled={entry.count >= MAX_COPIES_PER_CARD}
+                            title="PĹ™idat 1"
+                        >
+                            +
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => transferOneCopy(entry.card, otherZone, entry.zone)}
+                            disabled={!canTransferIn}
+                            title="Vzit 1 kopii z druhe sekce"
+                        >
+                            {otherZone === 'sideboard' ? '>SB' : '>D'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )
     }
 
     if (loading) {
@@ -600,6 +1032,13 @@ export default function App() {
                     <FilterPanel
                         showDuplicates={showDuplicates}
                         onShowDuplicatesChange={setShowDuplicates}
+                        costRange={costRange}
+                        powerRange={powerRange}
+                        hpRange={hpRange}
+                        onCostRangeChange={setCostRange}
+                        onPowerRangeChange={setPowerRange}
+                        onHpRangeChange={setHpRange}
+                        onClearNumericFilters={clearNumericFilters}
                         types={availableTypes}
                         typeMode={typeFilterMode}
                         selectedTypes={selectedTypes}
@@ -635,6 +1074,7 @@ export default function App() {
                         onToggleExpansion={toggleExpansion}
                         onSelectAllExpansions={selectAllExpansions}
                         onClearAllExpansions={clearAllExpansions}
+                        onSelectPremierExpansions={selectPremierExpansions}
                     />
                 </section>
             ) : null}
@@ -682,14 +1122,36 @@ export default function App() {
                             <div className="builder-actions">
                                 <button
                                     type="button"
-                                    onClick={() => addCardToDeck(current)}
+                                    className="deck-add-button"
+                                    onClick={() => addCardToList(current, 'deck')}
                                     disabled={currentDeckCount >= MAX_COPIES_PER_CARD}
+                                    data-label={
+                                        currentDeckCount >= MAX_COPIES_PER_CARD
+                                            ? 'Deck max 3x'
+                                            : `Pridat do decku (${currentDeckCount}${
+                                                  currentSideboardCount > 0
+                                                      ? ` (sideboard ${currentSideboardCount})`
+                                                      : ''
+                                              })`
+                                    }
                                 >
                                     {currentDeckCount >= MAX_COPIES_PER_CARD
                                         ? 'Maximum 3×'
                                         : `Přidat do listu (${currentDeckCount}/3)`}
                                 </button>
+                                <button
+                                    type="button"
+                                    onClick={() => addCardToList(current, 'sideboard')}
+                                    disabled={currentSideboardCount >= MAX_COPIES_PER_CARD}
+                                >
+                                    {currentSideboardCount >= MAX_COPIES_PER_CARD
+                                        ? 'Sideboard max 3x'
+                                        : `Pridat do sideboardu (${currentSideboardCount})`}
+                                </button>
                             </div>
+                            {currentSideboardCount > 0 ? (
+                                <div className="subtitle">(sideboard: {currentSideboardCount})</div>
+                            ) : null}
                         </div>
 
                         <div className="info-table">
@@ -712,14 +1174,16 @@ export default function App() {
                     <aside className="deck-panel">
                         <div className="deck-panel-header">
                             <h3>Seznam</h3>
-                            <div className="deck-count">{totalDeckCards} ks</div>
+                            <div className="deck-count">
+                                Deck {totalDeckCards} ks | Sideboard {totalSideboardCards} ks
+                            </div>
                         </div>
 
                         {deckEntries.length === 0 ? (
                             <div className="deck-empty">Zatím nemáš přidané žádné karty.</div>
                         ) : (
                             <div className="deck-entry-list">
-                                {deckEntries.map((entry) => {
+                                {([] as DeckEntry[]).map((entry) => {
                                     const deckImageUrl = getImageUrl(entry.card)
 
                                     return (
@@ -745,12 +1209,17 @@ export default function App() {
                                             </div>
 
                                             <div className="deck-entry-bottom">
-                                                <div className="deck-entry-count">{entry.count} / 3</div>
+                                                <div className="deck-entry-count">{entry.count}</div>
 
                                                 <div className="deck-entry-actions">
                                                     <button
                                                         type="button"
-                                                        onClick={() => decrementDeckEntry(entry.key)}
+                                                        onClick={() =>
+                                                            decrementDeckEntry(
+                                                                entry.key,
+                                                                getCardName(entry.card),
+                                                            )
+                                                        }
                                                         title="Odebrat 1"
                                                     >
                                                         -
@@ -765,10 +1234,12 @@ export default function App() {
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        onClick={() => removeDeckEntry(entry.key)}
-                                                        title="Odebrat kartu"
+                                                        onClick={() => moveDeckEntryToOtherZone(entry.key)}
+                                                        title="Presunout mezi deck/sideboard"
                                                     >
-                                                        Odebrat
+                                                        {entry.zone === 'deck'
+                                                            ? 'Do sideboardu'
+                                                            : 'Do decku'}
                                                     </button>
                                                 </div>
                                             </div>
@@ -777,6 +1248,30 @@ export default function App() {
                                 })}
                             </div>
                         )}
+                        {deckEntries.length > 0 ? (
+                            <div className="deck-sections">
+                                <section>
+                                    <h4 className="deck-section-title">Deck</h4>
+                                    {deckZoneEntries.length === 0 ? (
+                                        <div className="deck-empty">Deck je prazdny.</div>
+                                    ) : (
+                                        <div className="deck-entry-list">
+                                            {deckZoneEntries.map(renderDeckEntry)}
+                                        </div>
+                                    )}
+                                </section>
+                                <section>
+                                    <h4 className="deck-section-title">Sideboard</h4>
+                                    {sideboardZoneEntries.length === 0 ? (
+                                        <div className="deck-empty">Sideboard je prazdny.</div>
+                                    ) : (
+                                        <div className="deck-entry-list">
+                                            {sideboardZoneEntries.map(renderDeckEntry)}
+                                        </div>
+                                    )}
+                                </section>
+                            </div>
+                        ) : null}
                     </aside>
                 </div>
             )}
