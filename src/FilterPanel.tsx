@@ -19,8 +19,7 @@ type FilterPanelProps = {
     onShowDuplicatesChange: (value: boolean) => void
     showAttributesPanel: boolean
     onShowAttributesPanelChange: (value: boolean) => void
-    keyword: string
-    onKeywordChange: (value: string) => void
+    onResetFiltersToDefault: () => void
     costRange: RangeValue
     powerRange: RangeValue
     hpRange: RangeValue
@@ -60,6 +59,14 @@ type FilterPanelProps = {
     onToggleAspect: (value: string) => void
     onSelectAllAspects: () => void
     onClearAllAspects: () => void
+
+    arenas: string[]
+    arenaMode: FilterMode
+    selectedArenas: string[]
+    onArenaModeChange: (mode: FilterMode) => void
+    onToggleArena: (value: string) => void
+    onSelectAllArenas: () => void
+    onClearAllArenas: () => void
 
     expansions: string[]
     expansionMode: FilterMode
@@ -188,16 +195,6 @@ function FilterPanelComponent(props: FilterPanelProps) {
                     <strong>Obecne</strong>
                 </div>
 
-                <label className="filter-text-field">
-                    <span>Text</span>
-                    <input
-                        type="text"
-                        value={props.keyword}
-                        onChange={(e) => props.onKeywordChange(e.target.value)}
-                        placeholder="nazev nebo text karty"
-                    />
-                </label>
-
                 <label className="filter-item">
                     <input
                         type="checkbox"
@@ -215,6 +212,12 @@ function FilterPanelComponent(props: FilterPanelProps) {
                     />
                     <span>Zobrazit stredni panel detailu</span>
                 </label>
+
+                <div className="filter-group-actions">
+                    <button type="button" onClick={props.onResetFiltersToDefault}>
+                        Filtr do puvodniho nastaveni
+                    </button>
+                </div>
             </div>
 
             <div className="filters-panel">
@@ -309,6 +312,17 @@ function FilterPanelComponent(props: FilterPanelProps) {
                     onSelectAll={props.onSelectAllAspects}
                     onClearAll={props.onClearAllAspects}
                     getItemClassName={getAspectChipClassName}
+                />
+
+                <FilterGroup
+                    title="Arena"
+                    items={props.arenas}
+                    mode={props.arenaMode}
+                    selectedItems={props.selectedArenas}
+                    onModeChange={props.onArenaModeChange}
+                    onToggleItem={props.onToggleArena}
+                    onSelectAll={props.onSelectAllArenas}
+                    onClearAll={props.onClearAllArenas}
                 />
             </div>
         </>

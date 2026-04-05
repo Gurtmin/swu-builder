@@ -1,82 +1,82 @@
-Guidelines pro další promptování
+Guidelines pro dalsi promptovani (aktualni stav)
+
 Zdroj pravdy
-Vždy vycházej z aktuálního stavu repa: https://github.com/Gurtmin/swu-builder.git
-Nevracej se ke starším návrhům, pokud nejsou v aktuálním GitHubu.
-Před návrhem změn vždy ber jako rozhodující to, co je teď v repu.
-Formát odpovědí
-U změn v kódu dávej ideálně:
-celý soubor, pokud je změn víc
-nebo přesný blok „nahraď toto tímto“, pokud je změna malá
-Když je soubor ve špatně čitelné podobě nebo bez formátování, raději pošli celý nový obsah.
-Nevysvětluj zbytečně obecně, spíš napiš přesně co vložit a kam.
-Datový model
-Vždy počítej s vnořenou strukturou dat:
-card.attributes.title
-card.attributes.subtitle
-card.attributes.type?.data?.attributes?.name
-card.attributes.expansion?.data?.attributes?.name
-card.attributes.rarity?.data?.attributes?.name
-card.attributes.artFront?.data?.attributes?.formats?.card?.url
-Nikdy se nevracej k plochému modelu typu:
-card.title
-card.frontArt?.url
-card.expansion?.name
+- Vychazej z aktualniho stavu lokalniho repa.
+- Nenavrhuj navrat ke starym variantam, ktere uz byly zmeneny.
+- Kdyz je neco oznaceno jako hotove, navazuj na to.
+
+Dokumentace a rozdeleni odpovednosti
+- Pri kazde vyznamnejsi uprave funkce aktualizuj oba soubory:
+  - `zadani.md`
+  - `src/guidelines`
+- `zadani.md` pouzivej hlavne pro business pozadavky a funkcni chovani aplikace (co ma uzivatel dostat).
+- `src/guidelines` pouzivej pro pravidla prace agenta, technicke postupy, implementacni konvence a guides (jak k tomu pristupovat).
+
+Datovy model
+- Vzdy pouzivej vnoreny model `card.attributes...`.
+- Klicove cesty:
+  - `card.attributes.title`
+  - `card.attributes.subtitle`
+  - `card.attributes.type?.data?.attributes?.name`
+  - `card.attributes.expansion?.data?.attributes?.name`
+  - `card.attributes.rarity?.data?.attributes?.name`
+  - `card.attributes.traits?.data[]`
+  - `card.attributes.aspects?.data[]`
+  - `card.attributes.arenas?.data[]`
+  - `card.attributes.artFront?.data?.attributes?.formats?.card?.url`
+  - `card.attributes.artBack?.data?.attributes?.formats?.card?.url`
+- Nepouzivej plochy model typu `card.title`, `card.expansion.name` apod.
+
 Filtry
-Typ, Edice, Rarita jsou single-value filtry.
-Traits a Aspekty jsou multi-value filtry.
-Pro Traits a Aspekty má platit:
-include: karta projde, pokud obsahuje alespoň jednu z vybraných hodnot
-exclude: karta projde, pokud neobsahuje žádnou z vybraných hodnot
-Defaultně mají být filtry postavené tak, aby UI bylo rozšiřitelné o další sekce.
-Duplicity
-Defaultně duplicity nezobrazovat.
-Duplicita je určena kombinací:
-title + subtitle
-Pokud jsou duplicity zapnuté, musí být seřazené tak, aby byly vždy u sebe.
-UX / UI očekávání
-Zachovat čistý, přehledný layout.
-Filtry ideálně jako samostatné dlaždice / karty.
-Tlačítka a přepínače držet na jednom řádku, pokud to dává smysl.
-Když se načítá obrázek nové karty, musí být vidět loading stav.
-Když už je nějaká hodnota zobrazená jako nadpis, neopakovat ji zbytečně v atributech.
-TypeScript pravidla
-Dávat pozor na string | undefined.
-Pokud se mapují názvy z relations, vždy je čistit přes type guard.
-Preferovat helpery typu:
-isNonEmptyString(...)
-getRelationNames(...)
-Neposílat do Set.has, includes, setState hodnoty, které můžou být undefined.
-Styl spolupráce
-Když navrhuješ další změnu, navazuj na to, co už bylo hotové.
-Nedělej znovu změny, které už uživatel opravil sám.
-Když uživatel řekne, že něco funguje, ber to jako hotové a stav na tom.
-Pokud si nejsi jistý aktuálním stavem, nejdřív zkontroluj repo a až pak navrhuj úpravy.
-Preferovaný způsob zadání
+- Keyword je v horni toolbar liste, ne v sekci Obecne.
+- Typ/Edice/Rarita jsou single-value filtry.
+- Traits/Aspekty/Arena jsou multi-value filtry s Include/Exclude.
+- U multi filtru drzet i synthetic volby:
+  - Traits: `Bez traitu`
+  - Aspekty: `Bez aspektu`
+  - Arena: `Bez areny`
+- Obecne obsahuje:
+  - `Zobrazit duplicitni karty`
+  - `Zobrazit stredni panel detailu` (default false)
+  - `Filtr do puvodniho nastaveni`
+- Reset filtru vraci vse do defaultu a vypina stredni panel detailu.
 
-Dobré prompty vypadají třeba takto:
+Deck a sideboard
+- Deck a sideboard musi byt oddelene sekce.
+- Kazda sekce ma:
+  - vlastni hlavicku s poctem
+  - sbaleni/rozbaleni
+  - vlastni scroll
+- Razeni polozek:
+  - 1) cost asc
+  - 2) title asc
+- Karta mimo aktualni filtr je cervene zvyraznena.
+- Klik na nahled karty v decku/sideboardu presune slider na danou kartu.
 
-„Koukni do aktuální verze repo a uprav pouze FilterPanel.tsx.“
-„Navrhni změnu jen jako celý soubor.“
-„Nevysvětluj teorii, pošli mi přesně co nahradit.“
-„Vycházej z aktuálního GitHubu, ne ze starších návrhů.“
-„Zachovej současný layout a doplň jen filtr Rarita.“
-Doporučený prompt template
-Vycházej z aktuálního stavu repo https://github.com/Gurtmin/swu-builder.git.
+Leader/Base pravidla
+- V listu ma byt 1 leader a 1 base.
+- V levem panelu pro leader/base zobrazovat jen tlacitko `Pouzit`.
+- `Pouzit` nahrazuje aktualniho leadera/base v decku.
+- Leader/base nezobrazovat v deck listu.
+- Leader/base nezapocitavat do poctu decku ani do cost distribuce.
 
-Potřebuji upravit [soubor / feature].
+Import/export
+- Export format:
+  - root: `version`, `exportedAt`, `deck`, `sideboard`
+  - item: `id`, `title`, `subtitle`, `count`
+- Import:
+  - podporuj `name` jako legacy fallback pro `title`
+  - match poradi: `id` -> `title`
+  - pokud je stejnych `title` vic a importovana polozka ma `subtitle`, pouzij `title+subtitle`
+  - kdyz subtitle chybi, match jen podle title
+- Pri nenalezenych kartach vypis vsechny jejich nazvy.
 
-Pravidla:
-- používej vnořenou strukturu card.attributes...
-- nevrať se k plochému modelu
-- zachovej současný layout
-- pošli raději celý soubor než dílčí útržky
-- změň jen to, co je potřeba
+UI a layout
+- Tlacitka `Pridat do decku/sideboardu` zustavaji pod obrazkem karty.
+- Stredni panel detailu musi jit skryt/zobrazit.
+- Vyska builderu se prizpusobuje vysce viewportu.
+- Deck panel ma byt vyskove srovnany s levym panelem.
 
-Konkrétně chci:
-- ...
-- ...
-- ...
-Krátká verze pro opakované použití
-Vycházej jen z aktuální verze swu-builder na GitHubu. Používej card.attributes..., ne plochý model. Navazuj na existující řešení, nic nerozbíjej, pošli ideálně celý výsledný soubor.
-
-Jestli chceš, můžu ti z toho udělat ještě i kratší “system prompt” verzi pro copy-paste na začátek každého dalšího zadání.
+Konzistence projektu
+- Favicon je `/jedi.svg` (`public/jedi.svg`).
+- Udrzuj ukazkovy import `public/deck-import-list.json` ve validnim formatu.

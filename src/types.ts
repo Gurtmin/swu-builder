@@ -65,6 +65,9 @@ export type SwuCardAttributes = {
     artFront?: {
         data?: MediaData
     } | null
+    artBack?: {
+        data?: MediaData
+    } | null
 }
 
 export type SwuCard = {
